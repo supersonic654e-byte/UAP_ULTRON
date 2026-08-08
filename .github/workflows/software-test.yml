@@ -4,10 +4,13 @@ on:
     paths:
       - 'versions/V0.3_Ultron/software/**'
       - 'versions/V0.3_Ultron/tests/scripts/**'
+      - '.github/workflows/software-test.yml'
   pull_request:
     paths:
       - 'versions/V0.3_Ultron/software/**'
       - 'versions/V0.3_Ultron/tests/scripts/**'
+      - '.github/workflows/software-test.yml'
+  workflow_dispatch:
 
 jobs:
   offline-tests:

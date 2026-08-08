@@ -3,9 +3,12 @@ on:
   push:
     paths:
       - 'versions/V0.3_Ultron/firmware/**'
+      - '.github/workflows/firmware-build.yml'
   pull_request:
     paths:
       - 'versions/V0.3_Ultron/firmware/**'
+      - '.github/workflows/firmware-build.yml'
+  workflow_dispatch:
 
 jobs:
   build:
