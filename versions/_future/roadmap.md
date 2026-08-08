@@ -1,7 +1,7 @@
 # UAP_ULTRON — Future Generations Roadmap: Ultron_VitalsV2.0 & Ultron_MedAssistV3.0
 
 > Summary-level roadmap for the generations that follow Ultron_insightV1.0.
-> Sources: [`../../docs/10_architecture/ai_architecture.md`](AI_Architecture_SHORT.txt) and [`../../docs/40_business/pitch_deck.docx`](BEARSUMMIT_SPEECH.docx).
+> Sources: [`../../docs/10_architecture/ai_architecture.md`](../../docs/10_architecture/ai_architecture.md) and [`../../docs/40_business/pitch_deck.docx`](../../docs/40_business/pitch_deck.docx).
 > These are **future** versions. Nothing here changes the current Ultron_V0.3 build (`../V0.3_Ultron/implementation_bible.md`).
 
 ---

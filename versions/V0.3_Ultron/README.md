@@ -1,6 +1,6 @@
 ## Why V0.3 Exists
 
-Ultron_V0.3 (the current build — see [`../V0.3_Ultron/implementation_bible.md`](Ultron_V0.3.txt)) is the **final testing / pre-deployment prototype**, engineered as the immediate predecessor of **Ultron_insightV1.0**. The failures of V0.1/V0.2 are absorbed as documented fixes (Sections 0–16 of the Bible) rather than as design debt.
+Ultron_V0.3 (the current build — see [`../V0.3_Ultron/implementation_bible.md`](implementation_bible.md)) is the **final testing / pre-deployment prototype**, engineered as the immediate predecessor of **Ultron_insightV1.0**. The failures of V0.1/V0.2 are absorbed as documented fixes (Sections 0–16 of the Bible) rather than as design debt.
 
 ## Version Identity Table
 
@@ -14,4 +14,4 @@ Ultron_V0.3 (the current build — see [`../V0.3_Ultron/implementation_bible.md`
 
 ---
 
-*This page may be expanded with the detailed V0.1/V0.2 build logs when available. Nothing in this history is a reference design for deployment; always follow [`../V0.3_Ultron/implementation_bible.md`](Ultron_V0.3.txt) for Ultron_V0.3.*
+*This page may be expanded with the detailed V0.1/V0.2 build logs when available. Nothing in this history is a reference design for deployment; always follow [`../V0.3_Ultron/implementation_bible.md`](implementation_bible.md) for Ultron_V0.3.*
