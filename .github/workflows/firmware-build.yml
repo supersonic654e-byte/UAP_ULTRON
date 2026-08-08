@@ -25,6 +25,6 @@ jobs:
         run: |
           arduino-cli compile \
             --fqbn arduino:avr:mega:cpu=atmega2560 \
-            versions/V0.3_Ultron/firmware
+            versions/V0.3_Ultron/firmware/ultron_firmware
         env:
           MAKEFLAGS: -j2

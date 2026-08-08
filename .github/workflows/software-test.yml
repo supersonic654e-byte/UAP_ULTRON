@@ -1,0 +1,31 @@
+name: software-test
+on:
+  push:
+    paths:
+      - 'versions/V0.3_Ultron/software/**'
+      - 'versions/V0.3_Ultron/tests/scripts/**'
+  pull_request:
+    paths:
+      - 'versions/V0.3_Ultron/software/**'
+      - 'versions/V0.3_Ultron/tests/scripts/**'
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Python syntax check (all repo .py)
+        run: |
+          set -euo pipefail
+          find versions docs scripts -name '*.py' -print0 | xargs -0 -n1 python3 -m py_compile
+      - name: Offline unit tests (protocol, safety, depth->scan)
+        run: |
+          cd versions/V0.3_Ultron/tests/scripts
+          python3 protocol_test.py
+          python3 test_safety_node.py
+          python3 test_depth_scan.py
