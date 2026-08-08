@@ -2,6 +2,19 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
+## 2026-08-08 — Bible r4 sync + professional docx/txt export (UAP_ULTRON Team)
+
+- Updated `implementation_bible.md` to reflect all audit P0-P2 work: closed-loop
+  wheel PID (P0), `camera_info`-driven depth→scan (P1), EKF-onboard launch
+  option (P1), `/diagnostics` from safety_node (P2), web `--sim` demo mode and
+  reserved topic slots (P2), and the r4 firmware (config.h/pid/imu/etc.).
+- Fixed two unterminated markdown code fences (11.4 flash block, §19.9) and the
+  truncated header-table Version cell that the old bible carried.
+- Regenerated the deliverable mirror `Ultron_V0.3.txt` (box-drawing renderer)
+  and rebuilt `Ultron_V0.3.docx` as a **professional Word document**: cover
+  page, TOC field, styled Heading 1/2/3, shaded monospace code blocks, native
+  tables, and a footer with page numbers.
+
 ## 2026-08-08 — Audit P1/P2: camera_info depth→scan, EKF-onboard, diagnostics (UAP_ULTRON Team)
 
 - **P1 — `depth_to_scan` now consumes `/kinect/depth/camera_info`** (live fx/cx

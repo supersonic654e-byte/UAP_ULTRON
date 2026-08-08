@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | This document | Ultron_V0.3 — final testing / pre-deployment prototype |
-| Version | Ultron_V0.3 (builds on Bible v4.2 + r2/r3 fixes; |
+| Version | Ultron_V0.3 (builds on Bible v4.2 + r2/r3 fixes; data-collection section added) |
 | Date | 08 August 2026 |
 | Status | Pre-Deployment Prototype (final testing) |
 | Architecture | Two-Layer (Edge + Remote Compute) |
@@ -68,6 +68,26 @@ v4.2r2 — DEFECT FIXES (autonomous robot focus)
            latches the E-stop; the operator must publish
            /ultron/clear_faults to resume motors.
 
+AUDIT P0-P2 (Ultron_V0.3 r4 — applied 08-08-2026)
+  P0   WHEEL VELOCITY PID CLOSED LOOP — per-wheel PI+feed-forward on the MCU
+       (pid.cpp/pid.h, ~30 Hz, encoder feedback + low-pass + derivative-on-
+       measurement). Replaces the open-loop velocity_to_pwm map. Flag:
+       WHEEL_PID_ENABLED=1. Re-validate the stop margin at min battery.
+  P1   CAMERA_INFO-DRIVEN depth_to_scan — intrinsics now come LIVE from
+       /kinect/depth/camera_info (select_camera_model helper); param fx/cx are
+       fallback only. A RealSense D455 swap needs NO node/param change.
+  P1   EKF-ONBOARD OPTION — robot_localization ekf_node can run on the Jetson
+       (ekf_onboard:=true) with the laptop EKF disabled (run_ekf:=false),
+       preserving the B4 single odom→base_link TF rule. Reduces the
+       network/clock dependency (risk R5).
+  P2   /diagnostics — safety_node publishes a 1 Hz DiagnosticArray
+       (lidar/kinect staleness, front distances, heartbeat) for RViz / smoke
+       tests / the future Command Centre.
+  P2   WEB --sim MODE — ultron_web --sim runs a simulator + ?demo=1 login hook
+       (production-safe, gated by SIM_MODE). Reserved /ultron/env,
+       /ultron/occupancy, /diagnostics topic slots documented (Section 19.9).
+
+
 ---
 
 ## Section 0 — DOCUMENT CONTROL & META
@@ -86,6 +106,7 @@ v4.2r2 — DEFECT FIXES (autonomous robot focus)
 | v4.1 | 05-08-2026 | Corrected power budget/runtime (~15-20 min). Speed limit to 0.45 m/s. Odom twist real-dt. ADC scale 0.017418. |
 | v4.2 | 05-08-2026 | B1-B12 applied. Minted for genuine Mega 2560 R3. Right-encoder PCINT fix, IBT-2 wiring fix, RMW switch to CycloneDDS, TF ownership, E-stop recovery, overcurrent 7A, serial RX 1200µs, udev for 16U2, MAKEFLAGS=-j2, chrony. SD+SSD storage + powered-hub allocation + Tailscale pin. |
 | Ultron_V0.3 | 08-08-2026 | Ultron_V0.3 edition. Pre-deployment framing. Audit corrections. NEW Section 17 (data collection/ logging for the V0.3 pilot). |
+| Ultron_V0.3 r4 (audit P0-P2) | 08-08-2026 | Closed-loop wheel velocity PID on the MCU (P0). `depth_to_scan` consumes `/kinect/depth/camera_info` (P1 — Kinect is drop-in replaceable by a D455). EKF-onboard launch option (P1 — `ekf_onboard:=true` Jetson + `run_ekf:=false` laptop). Safety node publishes `/diagnostics` (P2). Web `--sim` demo mode + `/api/demo/session` (production-safe). Reserved `/ultron/env`, `/ultron/occupancy`, `/diagnostics` topic slots (P2). |
 
 ### 0.2 COMPATIBILITY MATRIX
 ```
@@ -869,7 +890,7 @@ ls -la /dev/ultron_arduino
 lsusb | grep -E "2341|1a86|10c4|045e"
 #  2341 → genuine Arduino 16U2 ; 1a86 → CH340G clone
 
-### 5.5 DOCKERFILE (v4.2 — CycloneDDS; no Zenoh, MAKEFLAGS=-j2)
+### 5.5 DOCKERFILE (r4 — CycloneDDS; no Zenoh, MAKEFLAGS=-j2; +EKF/diagnostics)
 ```
 File: /mnt/ssd/ultron/jetson/Dockerfile
 ```
@@ -900,6 +921,9 @@ RUN apt-get update && apt-get install -y \
     ros-humble-tf2-ros \
     ros-humble-tf2-geometry-msgs \
     ros-humble-rmw-cyclonedds-cpp \
+    # r4 (P1/P2): onboard EKF + diagnostics deps.
+    ros-humble-robot-localization \
+    ros-humble-diagnostic-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ultron_ws
@@ -1283,18 +1307,33 @@ NOTE (v4.2r3): 8 FPS / 320×120 is the DEFAULT — it is the single biggest
   zone (LiDAR still owns <1 m). Drop to 5 FPS / 320×100 only if §3.6
   budget is exceeded.
 
-NODE 2: depth_to_scan_node      (v4.2r3 — matches 8 FPS)
+NODE 2: depth_to_scan_node      (r4 — camera_info-driven, P1)
 PURPOSE: Convert ROI depth middle row to LaserScan with tilt correction.
-TOPICS:  SUB /kinect/depth/image_raw; PUB /kinect/scan (BEST_EFFORT, ~8 Hz)
-PARAMS:  ROI_WIDTH=320, ROI_HEIGHT=120, KINECT_FX=574.05, CX_ROI=159.5,
-         TILT=-10°, TARGET_FPS=8
-EXPECTED: /kinect/scan hz ≈ 8.0 ; range_max=4.0
+TOPICS:  SUB /kinect/depth/image_raw (BEST_EFFORT, ~8 Hz),
+         SUB /kinect/depth/camera_info (BEST_EFFORT, ~1 Hz),
+         PUB /kinect/scan (BEST_EFFORT, ~8 Hz)
+CAMERA MODEL (P1 — audit): intrinsics fx/cx come LIVE from the camera_info
+  K matrix (already ROI-corrected by the driver). The declared kinect_fx /
+  cx_roi params are FALLBACK only (used until the first info, or if K is
+  invalid). select_camera_model() returns (fx, cx, using_live).
+  A RealSense D455 (which publishes its own camera_info) drops in with NO
+  node or param change — this is the drop-in seam (risk R2).
+PARAMS:  ROI_WIDTH=320, ROI_HEIGHT=120, KINECT_FX=574.05 (fallback),
+         CX_ROI=159.5 (fallback), TILT=-10°, TARGET_FPS=8
+EXPECTED: /kinect/scan hz ≈ 8.0 ; range_max=4.0 ;
+          log once: "using live camera_info (fx=... cx=...)"
 
-NODE 3: safety_node             (unchanged)
+NODE 3: safety_node             (r4 — adds /diagnostics, P2)
 PURPOSE: Enforce safety zones, fuse sensors, publish safe velocity + heartbeat.
-TOPICS:  SUB /cmd_vel /scan /kinect/scan; PUB /safe_cmd_vel /ultron/heartbeat
+TOPICS:  SUB /cmd_vel /scan /kinect/scan;
+         PUB /safe_cmd_vel /ultron/heartbeat /diagnostics
 SAFETY ZONES: STOP=0.35m, SLOW=0.70m; 20 Hz enforce, 10 Hz heartbeat.
-EXPECTED: heartbeat ~10 Hz, safe_cmd_vel ~20 Hz.
+DIAGNOSTICS (P2): 1 Hz DiagnosticArray on /diagnostics —
+  lidar_stale / kinect_stale booleans, lidar_front_m, kinect_front_m,
+  stop_dist_m, heartbeat_seq, and an OK/WARN/ERROR level (stale LiDAR =
+  ERROR, stale Kinect = WARN, object inside STOP = WARN). Consumable by
+  RViz, the smoke test, and the future Command Centre.
+EXPECTED: heartbeat ~10 Hz, safe_cmd_vel ~20 Hz, /diagnostics ~1 Hz.
 
 NODE 4: serial_node             (v4.2 — B4 no TF, B7 clear_faults)
 PURPOSE: Bridge ROS 2 ↔ Arduino binary protocol over USB serial.
@@ -1566,6 +1605,9 @@ EXECUTION MODEL:
   Main loop:    100 Hz (10ms period) — cooperative scheduling
   ISRs:         Hardware-preemptive (encoder, E-stop)
   WDT:          8s hardware timeout (AVR peripheral, independent)
+  Drive:        CLOSED-LOOP (P0) per-wheel velocity PID (~30 Hz) with
+                encoder feedback + low-pass + feed-forward; open-loop
+                velocity_to_pwm map kept behind WHEEL_PID_ENABLED=0.
 
 PRIORITY (highest → lowest):
   1. ISR(INT4_vect)  — E-Stop          < 5 µs
@@ -1615,7 +1657,7 @@ FAULT BITS:
 
 ### 11.3 FULL FIRMWARE
 ```
-FILE: ultron_firmware/config.h  (v4.2r2 — two-PWM pins, encoders, 7A, ADC)
+FILE: ultron_firmware/config.h  (r4 — two-PWM pins, encoders, 7A ADC, PID constants, WHEEL_PID_ENABLED)
 ```
 #pragma once
 #include <stdint.h>
@@ -1679,6 +1721,19 @@ FILE: ultron_firmware/config.h  (v4.2r2 — two-PWM pins, encoders, 7A, ADC)
 #define PWM_DEADZONE        25
 #define MAX_SPEED_MPS       0.45f         // teleop clamp; Nav2 auto = 0.35
 
+// ── WHEEL VELOCITY PID (P0 — closes the open-loop gap before Nav2 reliance) ──
+// Closes loop on measured wheel speed (m/s) computed from encoder deltas at
+// the 100 Hz loop. Output is PWM in [-255, 255] (feed-forward + feedback).
+#define WHEEL_PID_ENABLED   1             // 1 = closed-loop, 0 = open-loop PWM
+#define PID_PERIOD_S        0.01f         // must match LOOP_PERIOD_US
+#define PID_FEEDFORWARD     1.0f          // full FF: v/MAX_SPEED_MPS*255
+#define PID_KP              14.0f         // proportional gain (PWM per m/s err)
+#define PID_KI              40.0f         // integral gain (windup-limited)
+#define PID_KD              0.08f         // derivative on measurement (damping)
+#define PID_INTEGRAL_LIMIT  90.0f         // anti-windup cap
+#define PID_OUTPUT_LIMIT    255.0f        // PWM saturation
+#define PID_SPEED_LPF_ALPHA 0.35f         // measured-speed low-pass (0..1)
+
 // ── PROTOCOL ──────────────────────────────────────────────────────────────────
 #define SERIAL_BAUD         115200
 #define HDR_OUT             0xAA
@@ -1718,14 +1773,110 @@ typedef int32_t fixed16_t;
 #define FLOAT_TO_FIXED(f) ((fixed16_t)((f)*65536.0f))
 #define FIXED_TO_FLOAT(x) ((float)(x)/65536.0f)
 #define FIXED_MUL(a,b)    ((fixed16_t)(((int64_t)(a)*(b))>>16))
+// Well-defined int32 -> Q16.16 (safe on negative values too).
+#define INT_TO_FIXED(v)   ((fixed16_t)(((int64_t)(v))<<16))
 
 // ── IMU ───────────────────────────────────────────────────────────────────────
 #define IMU_I2C_ADDR    0x68
+#define IMU_DLPF_CFG    0x02          // 42 Hz low-pass (P1: DLPF now active)
+#define IMU_BIAS_SAMPLES 100         // stationary samples for gyro zero-offset
 
 ```
-FILE: ultron_firmware/encoders.cpp  (v4.2 B1 — reads PINB)
+FILE: ultron_firmware/encoders.h  (quadrature encoder state (left INT3/INT2, right PCINT Port B))
 ```
+#pragma once
+#include <stdint.h>
+void init_encoders();
+extern volatile int32_t left_encoder_count;
+extern volatile int32_t right_encoder_count;
+
+```
+FILE: ultron_firmware/motors.h  (two-PWM BTS7960 (Timer3/Timer4) + velocity_to_pwm fallback)
+```
+#pragma once
+#include <stdint.h>
+#include "config.h"
+void init_motor_pwm();
+void set_motor_pwm(uint8_t motor, int16_t pwm);
+int16_t velocity_to_pwm(float v);
+
+```
+FILE: ultron_firmware/imu.h  (MPU6050 data struct + stationary bias)
+```
+#pragma once
+#include <stdint.h>
+typedef struct { float ax, ay, az, gx, gy, gz; } ImuData;
+// Stationary gyro zero-offsets (rad/s), captured at init (P1).
+typedef struct { float gx, gy, gz; } ImuOffsets;
+void init_imu();
+bool read_imu(ImuData* out);
+
+```
+FILE: ultron_firmware/power.h  (battery/current ADC scale helpers)
+```
+#pragma once
+#include <stdint.h>
+void background_tasks();
+float read_battery_voltage();
+
+```
+FILE: ultron_firmware/protocol.h  (binary packet constants + CRC-8-CCITT)
+```
+#pragma once
+#include <stdint.h>
+#include "imu.h"
+uint8_t crc8(const uint8_t* data, uint8_t len);
+uint8_t build_encoder_packet(uint8_t* out, int32_t l, int32_t r, uint32_t ts);
+uint8_t build_imu_packet(uint8_t* out, const ImuData* imu);
+uint8_t build_battery_packet(uint8_t* out, float v);
+uint8_t build_fault_packet(uint8_t* out, uint8_t flags);
+float ntoh_float(const uint8_t* p);
+
+```
+FILE: ultron_firmware/faults.h  (fault bit definitions + fault_name())
+```
+#pragma once
+#include <stdint.h>
+const char* fault_name(uint8_t bit);
+
+```
+FILE: ultron_firmware/tx_queue.h  (TX ring buffer (encoders/imu/battery/fault))
+```
+#pragma once
+#include <stdint.h>
+void init_tx_queue();
+bool tx_enqueue(const uint8_t* data, uint8_t len);
+void tx_drain();
+
+```
+FILE: ultron_firmware/pid.h  (P0 wheel velocity PID struct + API)
+```
+#pragma once
+#include <stdint.h>
+
+// Wheel velocity PID (P0). Output is PWM in [-255, 255].
+typedef struct {
+    float kp, ki, kd;          // gains
+    float integral;            // anti-windup clamped integrator
+    float prev_measurement;    // for derivative-on-measurement
+    float out_limit;           // PWM saturation
+    float int_limit;           // integrator clamp
+    float ff_gain;             // feed-forward = v/MAX_SPEED_MPS * 255 * ff_gain
+    bool  first;               // first update (skip derivative)
+} PidCtrl;
+
+void pid_init(PidCtrl* c, float kp, float ki, float kd,
+              float ff_gain, float out_limit, float int_limit);
+void pid_reset(PidCtrl* c);
+float pid_update(PidCtrl* c, float setpoint, float measurement, float dt,
+                 float max_speed_mps);
+
+```
+FILE: ultron_firmware/encoders.cpp  (v4.2 B1 — right encoder reads PINB (Port B))
+```
+#include <Arduino.h>
 #include "encoders.h"
+#include "config.h"
 
 volatile int32_t left_encoder_count  = 0;
 volatile int32_t right_encoder_count = 0;
@@ -1774,10 +1925,14 @@ void init_encoders() {
     right_enc_a_prev=(PINB&(1<<PB1))!=0;
     right_enc_b_prev=(PINB&(1<<PB2))!=0;
 }
+
 ```
-FILE: ultron_firmware/motors.cpp   (v4.2r2 D1 — native two-PWM)
+FILE: ultron_firmware/motors.cpp  (v4.2r2 D1 — native two-PWM per motor)
 ```
+#include <Arduino.h>
+#include <math.h>
 #include "motors.h"
+#include "config.h"
 
 void init_motor_pwm() {
     pinMode(LEFT_MOTOR_PWM,OUTPUT); pinMode(LEFT_MOTOR_LPWM,OUTPUT);
@@ -1816,8 +1971,316 @@ int16_t velocity_to_pwm(float v) {
         p=(p>0)?PWM_DEADZONE:-PWM_DEADZONE;
     return (int16_t)constrain(p,-255,255);
 }
+
 ```
-FILE: ultron_firmware/ultron_firmware.ino   (v4.2r2 — EN re-enable, RX 1200µs)
+FILE: ultron_firmware/imu.cpp  (P1 — DLPF 42 Hz + stationary gyro bias capture)
+```
+#include <Arduino.h>
+#include <Wire.h>
+#include "imu.h"
+#include "config.h"
+
+#define MPU_WHOAMI   0x75
+#define MPU_PWR      0x6B
+#define MPU_CONFIG   0x1A
+#define MPU_ACCEL_XH 0x3B
+#define MPU_GYRO_XH  0x43
+#define ACCEL_SCALE  16384.0f      // +-2g full scale (LSB/g)
+#define GYRO_SCALE   131.0f        // +-250 deg/s full scale (LSB/(deg/s))
+
+static ImuOffsets g_bias = {0.0f, 0.0f, 0.0f};
+
+static bool reg_write(uint8_t reg, uint8_t val) {
+    Wire.beginTransmission(IMU_I2C_ADDR);
+    Wire.write(reg); Wire.write(val);
+    return (Wire.endTransmission() == 0);
+}
+
+static bool read_gyro_raw(int16_t* x, int16_t* y, int16_t* z) {
+    Wire.beginTransmission(IMU_I2C_ADDR);
+    Wire.write(MPU_GYRO_XH);
+    if(Wire.endTransmission()!=0) return false;
+    Wire.requestFrom((uint8_t)IMU_I2C_ADDR, (uint8_t)6);
+    if(Wire.available()<6) return false;
+    uint8_t b[6];
+    for(uint8_t i=0;i<6;i++) b[i]=Wire.read();
+    *x=(int16_t)(((uint16_t)b[0]<<8)|b[1]);
+    *y=(int16_t)(((uint16_t)b[2]<<8)|b[3]);
+    *z=(int16_t)(((uint16_t)b[4]<<8)|b[5]);
+    return true;
+}
+
+void init_imu(){
+    // Wake from sleep.
+    reg_write(MPU_PWR, 0x00);
+    delay(5);
+    // DLPF 42 Hz (config register bits 2:0 = 0x02). Attenuates high-freq
+    // vibration noise before the gyro bias capture below.
+    reg_write(MPU_CONFIG, IMU_DLPF_CFG);
+
+    // P1: capture stationary gyro zero-offset (rad/s) so IMU_DATA is
+    // unbiased. Must be still on the bench / floor at boot.
+    int16_t gx=0, gy=0, gz=0;
+    long sx=0, sy=0, sz=0;
+    int n=0;
+    for(int i=0;i<IMU_BIAS_SAMPLES;i++){
+        if(read_gyro_raw(&gx,&gy,&gz)){ sx+=gx; sy+=gy; sz+=gz; n++; }
+        delay(2);
+    }
+    if(n>0){
+        float s=1.0f/(GYRO_SCALE*n)*0.0174533f;   // deg/s->rad/s per sample
+        g_bias.gx=(float)sx*s;
+        g_bias.gy=(float)sy*s;
+        g_bias.gz=(float)sz*s;
+    }
+}
+
+bool read_imu(ImuData* out){
+    if(!out) return false;
+    Wire.beginTransmission(IMU_I2C_ADDR);
+    Wire.write(MPU_ACCEL_XH);
+    if(Wire.endTransmission()!=0) return false; // NACK = IMU absent/fault
+    Wire.requestFrom((uint8_t)IMU_I2C_ADDR, (uint8_t)14);
+    if(Wire.available()<14) return false;
+    uint8_t b[14]; for(uint8_t i=0;i<14;i++) b[i]=Wire.read();
+    int16_t ax=((int16_t)((uint16_t)b[0]<<8)|b[1]);
+    int16_t ay=((int16_t)((uint16_t)b[2]<<8)|b[3]);
+    int16_t az=((int16_t)((uint16_t)b[4]<<8)|b[5]);
+    int16_t gx=((int16_t)((uint16_t)b[8]<<8)|b[9]);
+    int16_t gy=((int16_t)((uint16_t)b[10]<<8)|b[11]);
+    int16_t gz=((int16_t)((uint16_t)b[12]<<8)|b[13]);
+    out->ax=ax/ACCEL_SCALE;   out->ay=ay/ACCEL_SCALE;   out->az=az/ACCEL_SCALE;
+    // deg/s -> rad/s, then subtract stationary bias (P1).
+    out->gx=gx/GYRO_SCALE*0.0174533f - g_bias.gx;
+    out->gy=gy/GYRO_SCALE*0.0174533f - g_bias.gy;
+    out->gz=gz/GYRO_SCALE*0.0174533f - g_bias.gz;
+    return true;
+}
+
+```
+FILE: ultron_firmware/power.cpp  (battery divider (10k/3.9k, scale 0.017418) + ACS712 7 A trip)
+```
+#include <Arduino.h>
+#include "power.h"
+#include "config.h"
+#include "tx_queue.h"
+#include "protocol.h"
+
+extern volatile uint8_t fault_flags;   // defined in the .ino
+
+static float read_current(uint8_t pin){
+    float v=analogRead(pin)*(5.0f/1023.0f);
+    return (v-ACS712_ZERO_V)/ACS712_MV_PER_A;        // Amps
+}
+
+float read_battery_voltage(){
+    return analogRead(BATTERY_VOLTAGE_PIN)*BATTERY_ADC_SCALE;
+}
+
+void background_tasks(){
+    uint32_t now=millis();
+    static uint32_t last_batt_ms=0, last_curr_ms=0;
+    static uint8_t ci=0, filled=0;
+    static float curr_l[OVERCURRENT_SAMPLES], curr_r[OVERCURRENT_SAMPLES];
+
+    // Battery: publish ~1 Hz; latch critical fault at < 10.5 V.
+    if(now-last_batt_ms>=1000){
+        last_batt_ms=now;
+        float v=read_battery_voltage();
+        if(v<BATTERY_CRITICAL_V) SET_FAULT(FAULT_BIT_BATTERY);
+        uint8_t tmp[TX_MAX_PKT_SIZE];
+        tx_enqueue(tmp, build_battery_packet(tmp, v));
+    }
+    // Current: sample every 100 ms; 5-sample window = 500 ms sustained.
+    if(now-last_curr_ms>=100){
+        last_curr_ms=now;
+        curr_l[ci]=read_current(CURRENT_SENSE_L_PIN);
+        curr_r[ci]=read_current(CURRENT_SENSE_R_PIN);
+        ci=(uint8_t)((ci+1)%OVERCURRENT_SAMPLES);
+        if(filled<OVERCURRENT_SAMPLES) filled++;
+        if(filled==OVERCURRENT_SAMPLES){
+            float sl=0, sr=0;
+            for(uint8_t i=0;i<OVERCURRENT_SAMPLES;i++){ sl+=curr_l[i]; sr+=curr_r[i]; }
+            if((sl/OVERCURRENT_SAMPLES)>CURRENT_FAULT_AMPS ||
+               (sr/OVERCURRENT_SAMPLES)>CURRENT_FAULT_AMPS)
+                SET_FAULT(FAULT_BIT_OVERCURRENT);
+        }
+    }
+}
+
+```
+FILE: ultron_firmware/protocol.cpp  (frame parse state machine + CRC-8 + float/uint bytes)
+```
+#include <Arduino.h>
+#include <string.h>
+#include "protocol.h"
+#include "config.h"
+
+// CRC-8-CCITT poly 0x07 init 0x00, over TYPE+LEN+PAYLOAD.
+// Must stay byte-for-byte identical to serial_node.py `crc8()`.
+uint8_t crc8(const uint8_t* data, uint8_t len){
+    uint8_t crc=0;
+    for(uint8_t i=0;i<len;i++){
+        crc^=data[i];
+        for(uint8_t b=0;b<8;b++)
+            crc=(crc&0x80)?(uint8_t)((crc<<1)^0x07):(uint8_t)(crc<<1);
+    }
+    return crc;
+}
+
+float ntoh_float(const uint8_t* p){
+    union { uint32_t u; float f; } x;
+    x.u=((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];
+    return x.f;
+}
+
+// finalize: HDR, TYPE, LEN, payload[0..len-1], CRC over TYPE+LEN+payload
+static uint8_t pkt_finish(uint8_t* out, uint8_t type, uint8_t len){
+    out[0]=HDR_OUT; out[1]=type; out[2]=len;
+    out[3+len]=crc8(&out[1], (uint8_t)(len+2));
+    return (uint8_t)(len+4);
+}
+
+uint8_t build_encoder_packet(uint8_t* out, int32_t l, int32_t r, uint32_t ts){
+    out[3]=(uint8_t)(l>>24); out[4]=(uint8_t)(l>>16); out[5]=(uint8_t)(l>>8); out[6]=(uint8_t)l;
+    out[7]=(uint8_t)(r>>24); out[8]=(uint8_t)(r>>16); out[9]=(uint8_t)(r>>8); out[10]=(uint8_t)r;
+    out[11]=(uint8_t)(ts>>24);out[12]=(uint8_t)(ts>>16);out[13]=(uint8_t)(ts>>8);out[14]=(uint8_t)ts;
+    return pkt_finish(out, PKT_ENCODER, 12);
+}
+
+uint8_t build_imu_packet(uint8_t* out, const ImuData* imu){
+    const float v[6]={imu->ax,imu->ay,imu->az,imu->gx,imu->gy,imu->gz};
+    for(uint8_t i=0;i<6;i++){
+        union { uint32_t u; float f; } x; x.f=v[i];
+        out[3+i*4]=(uint8_t)(x.u>>24); out[4+i*4]=(uint8_t)(x.u>>16);
+        out[5+i*4]=(uint8_t)(x.u>>8);  out[6+i*4]=(uint8_t)x.u;
+    }
+    return pkt_finish(out, PKT_IMU, 24);
+}
+
+uint8_t build_battery_packet(uint8_t* out, float v){
+    union { uint32_t u; float f; } x; x.f=v;
+    out[3]=(uint8_t)(x.u>>24); out[4]=(uint8_t)(x.u>>16);
+    out[5]=(uint8_t)(x.u>>8);  out[6]=(uint8_t)x.u;
+    return pkt_finish(out, PKT_BATTERY, 4);
+}
+
+uint8_t build_fault_packet(uint8_t* out, uint8_t flags){
+    out[3]=flags;
+    return pkt_finish(out, PKT_FAULT, 1);
+}
+
+```
+FILE: ultron_firmware/faults.cpp  (debug helper only)
+```
+#include "faults.h"
+
+// Debug helper only. FAULT bits are authoritative in config.h.
+const char* fault_name(uint8_t bit){
+    switch(bit){
+        case 0: return "ESTOP";
+        case 1: return "OVERCURRENT";
+        case 2: return "WATCHDOG";
+        case 3: return "IMU";
+        case 4: return "ENCODER";
+        case 5: return "BATTERY";
+        case 6: return "HEARTBEAT";
+        case 7: return "RESERVED";
+    }
+    return "?";
+}
+
+```
+FILE: ultron_firmware/tx_queue.cpp  (TX ring buffer push/encode)
+```
+#include <Arduino.h>
+#include <string.h>
+#include "tx_queue.h"
+#include "config.h"
+
+struct Slot { uint8_t buf[TX_MAX_PKT_SIZE]; uint8_t len; };
+static Slot q[TX_QUEUE_SLOTS];
+static uint8_t head=0, count=0;
+
+void init_tx_queue(){ head=0; count=0; }
+
+bool tx_enqueue(const uint8_t* data, uint8_t len){
+    if(len==0 || len>TX_MAX_PKT_SIZE) return false;
+    if(count>=TX_QUEUE_SLOTS) return false;          // queue full: drop new
+    uint8_t idx=(uint8_t)((head+count)%TX_QUEUE_SLOTS);
+    memcpy(q[idx].buf, data, len);
+    q[idx].len=len; count++;
+    return true;
+}
+
+void tx_drain(){
+    while(count>0 && Serial.availableForWrite()>=q[head].len){
+        Serial.write(q[head].buf, q[head].len);
+        head=(uint8_t)((head+1)%TX_QUEUE_SLOTS); count--;
+    }
+}
+
+```
+FILE: ultron_firmware/pid.cpp  (P0 — PID with feed-forward, derivative-on-measurement, conditional integration)
+```
+#include "pid.h"
+
+void pid_init(PidCtrl* c, float kp, float ki, float kd,
+              float ff_gain, float out_limit, float int_limit) {
+    if(!c) return;
+    c->kp=kp; c->ki=ki; c->kd=kd;
+    c->ff_gain=ff_gain; c->out_limit=out_limit; c->int_limit=int_limit;
+    pid_reset(c);
+}
+
+void pid_reset(PidCtrl* c) {
+    if(!c) return;
+    c->integral=0.0f;
+    c->prev_measurement=0.0f;
+    c->first=true;
+}
+
+// Standard PID with:
+//  - proportional on error
+//  - integral (clamped, conditional integration when not saturated)
+//  - derivative ON MEASUREMENT (avoids derivative kick on setpoint steps)
+//  - velocity feed-forward so the controller only corrects residual error
+float pid_update(PidCtrl* c, float setpoint, float measurement, float dt,
+                 float max_speed_mps) {
+    if(!c || dt<=0.0f) return 0.0f;
+    float err = setpoint - measurement;
+
+    float out = 0.0f;
+    // Feed-forward term: nominal PWM for the requested speed.
+    float ff = (setpoint/max_speed_mps) * c->out_limit * c->ff_gain;
+
+    // Proportional.
+    out += c->kp * err;
+
+    // Derivative on measurement (damps noise, no kick).
+    if(!c->first) {
+        float dmeas = (measurement - c->prev_measurement)/dt;
+        out -= c->kd * dmeas;
+    }
+    c->prev_measurement = measurement;
+
+    // Integral with conditional integration (only when not saturated).
+    float out_clamped = ff + out + c->integral;
+    if(out_clamped < c->out_limit && out_clamped > -c->out_limit) {
+        c->integral += c->ki * err * dt;
+        if(c->integral >  c->int_limit) c->integral =  c->int_limit;
+        if(c->integral < -c->int_limit) c->integral = -c->int_limit;
+    }
+    out = ff + out + c->integral;
+
+    if(out >  c->out_limit) out =  c->out_limit;
+    if(out < -c->out_limit) out = -c->out_limit;
+    c->first=false;
+    return out;
+}
+
+```
+FILE: ultron_firmware/ultron_firmware.ino  (r4 — closed-loop PID drive, 1200us RX window, E-stop ISR, 8 s WDT)
 ```
 #include <Wire.h>
 #include <avr/wdt.h>
@@ -1829,6 +2292,7 @@ FILE: ultron_firmware/ultron_firmware.ino   (v4.2r2 — EN re-enable, RX 1200µs
 #include "faults.h"
 #include "tx_queue.h"
 #include "power.h"
+#include "pid.h"
 
 volatile uint8_t fault_flags   = 0x00;
 float  target_vel_left         = 0.0f;
@@ -1842,6 +2306,8 @@ uint8_t rx_state=0, rx_type, rx_len, rx_idx;
 uint8_t imu_fail_count=0, overcurrent_count=0, tx_decim=0;
 uint32_t last_enc_ms=0, last_loop_us=0;
 int32_t  last_total_ticks=0;
+
+static PidCtrl pid_left, pid_right;   // P0: wheel velocity PID
 
 int freeRam(){extern int __heap_start,*__brkval;int v;
   return (int)&v-(__brkval==0?(int)&__heap_start:(int)__brkval);}
@@ -1903,6 +2369,12 @@ void setup(){
     Wire.begin(); Wire.setClock(400000);
     init_encoders(); init_motor_pwm(); init_imu(); init_tx_queue();
 
+    // P0: init wheel velocity PID (closed loop around measured wheel speed).
+    pid_init(&pid_left,  PID_KP, PID_KI, PID_KD,
+             PID_FEEDFORWARD, PID_OUTPUT_LIMIT, PID_INTEGRAL_LIMIT);
+    pid_init(&pid_right, PID_KP, PID_KI, PID_KD,
+             PID_FEEDFORWARD, PID_OUTPUT_LIMIT, PID_INTEGRAL_LIMIT);
+
     // E-Stop INT4: EICRB register, falling edge
     pinMode(ESTOP_PIN,INPUT_PULLUP);
     EICRB|=(1<<ISC41); EICRB&=~(1<<ISC40);
@@ -1933,13 +2405,15 @@ void loop(){
     int32_t rc=right_encoder_count;
     interrupts();
 
-    // STEP 2: Fixed-point odometry (host does final pose; here harmless)
+    // STEP 2: Per-loop wheel deltas + measured speed (host does final pose;
+    // on-MCU odom is harmless and feeds the P0 PID).
     static int32_t plc=0,prc=0;
-    static fixed16_t MPT=FLOAT_TO_FIXED(METERS_PER_TICK);
-    static fixed16_t IWS=FLOAT_TO_FIXED(1.0f/WHEEL_SEP_M);
     int32_t dl=lc-plc, dr=rc-prc; plc=lc; prc=rc;
-    fixed16_t dl_m=FIXED_MUL(MPT,(fixed16_t)dl<<16);
-    fixed16_t dr_m=FIXED_MUL(MPT,(fixed16_t)dr<<16);
+    float vmeas_l = (float)dl*METERS_PER_TICK/PID_PERIOD_S;
+    float vmeas_r = (float)dr*METERS_PER_TICK/PID_PERIOD_S;
+    static float flt_l=0.0f, flt_r=0.0f;      // low-pass measured speed
+    flt_l += PID_SPEED_LPF_ALPHA*(vmeas_l-flt_l);
+    flt_r += PID_SPEED_LPF_ALPHA*(vmeas_r-flt_r);
 
     // STEP 3: IMU
     ImuData imu; bool imu_ok=read_imu(&imu);
@@ -1966,20 +2440,31 @@ void loop(){
         heartbeat_initialized=true; // 5s boot grace
     }
 
-    // STEP 6: Motor output (v4.2r2 D3: re-enable EN pins after fault clear —
-    //         the E-stop ISR drops them and nothing else restored them, so
-    //         the robot stayed dead after recovery).
+    // STEP 6: Motor output (v4.2r2 D3: re-enable EN pins after fault clear).
+    // P0: closed-loop PID on measured wheel speed; open-loop fallback when
+    // WHEEL_PID_ENABLED=0.
     if(ANY_MOTOR_FAULT()){
         OCR4A=0;OCR4B=0;OCR3A=0;OCR3C=0;
         PORTG&=~(1<<PG5);PORTH&=~(1<<PH5);   // keep EN low while faulted
+        pid_reset(&pid_left); pid_reset(&pid_right);
     } else {
         PORTG|=(1<<PG5);PORTH|=(1<<PH5);     // re-enable drivers
-        set_motor_pwm(MOTOR_LEFT, velocity_to_pwm(target_vel_left));
-        set_motor_pwm(MOTOR_RIGHT,velocity_to_pwm(target_vel_right));
+        if(WHEEL_PID_ENABLED){
+            int16_t pl=(int16_t)pid_update(&pid_left,target_vel_left,flt_l,
+                                           PID_PERIOD_S,MAX_SPEED_MPS);
+            int16_t pr=(int16_t)pid_update(&pid_right,target_vel_right,flt_r,
+                                           PID_PERIOD_S,MAX_SPEED_MPS);
+            set_motor_pwm(MOTOR_LEFT, pl);
+            set_motor_pwm(MOTOR_RIGHT,pr);
+        } else {
+            set_motor_pwm(MOTOR_LEFT, velocity_to_pwm(target_vel_left));
+            set_motor_pwm(MOTOR_RIGHT,velocity_to_pwm(target_vel_right));
+        }
     }
 
     // STEP 7: Encoder fault check (both wheels now count — v4.2 B1)
-    int32_t tot=abs(lc)+abs(rc);
+    // NOTE: use labs() — abs() is 16-bit int on AVR and overflows >32767.
+    int32_t tot=labs(lc)+labs(rc);
     if(tot!=last_total_ticks){last_total_ticks=tot;last_enc_ms=now_ms;}
     if((fabs(target_vel_left)>0.05f||fabs(target_vel_right)>0.05f)&&
        (now_ms-last_enc_ms)>ENCODER_FAULT_MS)
@@ -2001,258 +2486,6 @@ void loop(){
     tx_drain();
     digitalWrite(FAULT_LED,fault_flags?HIGH:LOW);
 }
-```
-
-FULL SUPPORTING FIRMWARE (v4.2r3 — completes the buildable set; matches the
-config.h and .ino above. Files: encoders.h, motors.h, imu.h/.cpp,
-protocol.h/.cpp, tx_queue.h/.cpp, power.h/.cpp, faults.h/.cpp)
-
-FILE: ultron_firmware/encoders.h
-```
-#pragma once
-#include <stdint.h>
-void init_encoders();
-extern volatile int32_t left_encoder_count;
-extern volatile int32_t right_encoder_count;
-
-#### ultron_firmware/motors.h
-```
-#pragma once
-#include <stdint.h>
-#include "config.h"
-void init_motor_pwm();
-void set_motor_pwm(uint8_t motor, int16_t pwm);
-int16_t velocity_to_pwm(float v);
-
-FILE: ultron_firmware/imu.h
-```
-#pragma once
-#include <stdint.h>
-typedef struct { float ax, ay, az, gx, gy, gz; } ImuData;
-void init_imu();
-bool read_imu(ImuData* out);
-
-#### ultron_firmware/imu.cpp
-```
-#include "imu.h"
-#include <Wire.h>
-#include "config.h"
-
-#define MPU_WHOAMI   0x75
-#define MPU_PWR      0x6B
-#define MPU_ACCEL_XH 0x3B
-#define ACCEL_SCALE  16384.0f      // +-2g full scale
-#define GYRO_SCALE   131.0f        // +-250 deg/s full scale -> dps
-
-void init_imu(){
-    Wire.beginTransmission(IMU_I2C_ADDR);
-    Wire.write(MPU_PWR); Wire.write(0x00);      // wake from sleep
-    Wire.endTransmission();
-}
-
-bool read_imu(ImuData* out){
-    if(!out) return false;
-    Wire.beginTransmission(IMU_I2C_ADDR);
-    Wire.write(MPU_ACCEL_XH);
-    if(Wire.endTransmission()!=0) return false; // NACK = IMU absent/fault
-    Wire.requestFrom((uint8_t)IMU_I2C_ADDR, (uint8_t)14);
-    if(Wire.available()<14) return false;
-    uint8_t b[14]; for(uint8_t i=0;i<14;i++) b[i]=Wire.read();
-    int16_t ax=((int16_t)b[0]<<8)|b[1];
-    int16_t ay=((int16_t)b[2]<<8)|b[3];
-    int16_t az=((int16_t)b[4]<<8)|b[5];
-    int16_t gx=((int16_t)b[8]<<8)|b[9];
-    int16_t gy=((int16_t)b[10]<<8)|b[11];
-    int16_t gz=((int16_t)b[12]<<8)|b[13];
-    out->ax=ax/ACCEL_SCALE;   out->ay=ay/ACCEL_SCALE;   out->az=az/ACCEL_SCALE;
-    out->gx=gx/GYRO_SCALE*0.0174533f;                   // deg/s -> rad/s
-    out->gy=gy/GYRO_SCALE*0.0174533f;
-    out->gz=gz/GYRO_SCALE*0.0174533f;
-    return true;
-}
-
-FILE: ultron_firmware/protocol.h
-```
-#pragma once
-#include <stdint.h>
-#include "imu.h"
-uint8_t crc8(const uint8_t* data, uint8_t len);
-uint8_t build_encoder_packet(uint8_t* out, int32_t l, int32_t r, uint32_t ts);
-uint8_t build_imu_packet(uint8_t* out, const ImuData* imu);
-uint8_t build_battery_packet(uint8_t* out, float v);
-uint8_t build_fault_packet(uint8_t* out, uint8_t flags);
-float ntoh_float(const uint8_t* p);
-
-#### ultron_firmware/protocol.cpp
-```
-#include "protocol.h"
-#include "config.h"
-
-uint8_t crc8(const uint8_t* data, uint8_t len){
-    uint8_t crc=0;
-    for(uint8_t i=0;i<len;i++){
-        crc^=data[i];
-        for(uint8_t b=0;b<8;b++)
-            crc=(crc&0x80)?(uint8_t)((crc<<1)^0x07):(uint8_t)(crc<<1);
-    }
-    return crc;
-}
-
-float ntoh_float(const uint8_t* p){
-    union { uint32_t u; float f; } x;
-    x.u=((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];
-    return x.f;
-}
-
-// finalize: HDR, TYPE, LEN, payload[0..len-1], CRC over TYPE+LEN+payload
-static uint8_t pkt_finish(uint8_t* out, uint8_t type, uint8_t len){
-    out[0]=HDR_OUT; out[1]=type; out[2]=len;
-    out[3+len]=crc8(&out[1], (uint8_t)(len+2));
-    return (uint8_t)(len+4);
-}
-
-uint8_t build_encoder_packet(uint8_t* out, int32_t l, int32_t r, uint32_t ts){
-    out[3]=(uint8_t)(l>>24); out[4]=(uint8_t)(l>>16); out[5]=(uint8_t)(l>>8); out[6]=(uint8_t)l;
-    out[7]=(uint8_t)(r>>24); out[8]=(uint8_t)(r>>16); out[9]=(uint8_t)(r>>8); out[10]=(uint8_t)r;
-    out[11]=(uint8_t)(ts>>24);out[12]=(uint8_t)(ts>>16);out[13]=(uint8_t)(ts>>8);out[14]=(uint8_t)ts;
-    return pkt_finish(out, PKT_ENCODER, 12);
-}
-
-uint8_t build_imu_packet(uint8_t* out, const ImuData* imu){
-    const float v[6]={imu->ax,imu->ay,imu->az,imu->gx,imu->gy,imu->gz};
-    for(uint8_t i=0;i<6;i++){
-        union { uint32_t u; float f; } x; x.f=v[i];
-        out[3+i*4]=(uint8_t)(x.u>>24); out[4+i*4]=(uint8_t)(x.u>>16);
-        out[5+i*4]=(uint8_t)(x.u>>8);  out[6+i*4]=(uint8_t)x.u;
-    }
-    return pkt_finish(out, PKT_IMU, 24);
-}
-
-uint8_t build_battery_packet(uint8_t* out, float v){
-    union { uint32_t u; float f; } x; x.f=v;
-    out[3]=(uint8_t)(x.u>>24); out[4]=(uint8_t)(x.u>>16);
-    out[5]=(uint8_t)(x.u>>8);  out[6]=(uint8_t)x.u;
-    return pkt_finish(out, PKT_BATTERY, 4);
-}
-
-uint8_t build_fault_packet(uint8_t* out, uint8_t flags){
-    out[3]=flags;
-    return pkt_finish(out, PKT_FAULT, 1);
-}
-
-FILE: ultron_firmware/tx_queue.h
-```
-#pragma once
-#include <stdint.h>
-void init_tx_queue();
-bool tx_enqueue(const uint8_t* data, uint8_t len);
-void tx_drain();
-
-#### ultron_firmware/tx_queue.cpp
-```
-#include "tx_queue.h"
-#include "config.h"
-
-struct Slot { uint8_t buf[TX_MAX_PKT_SIZE]; uint8_t len; };
-static Slot q[TX_QUEUE_SLOTS];
-static uint8_t head=0, count=0;
-
-void init_tx_queue(){ head=0; count=0; }
-
-bool tx_enqueue(const uint8_t* data, uint8_t len){
-    if(len==0 || len>TX_MAX_PKT_SIZE) return false;
-    if(count>=TX_QUEUE_SLOTS) return false;          // queue full: drop new
-    uint8_t idx=(uint8_t)((head+count)%TX_QUEUE_SLOTS);
-    memcpy(q[idx].buf, data, len);
-    q[idx].len=len; count++;
-    return true;
-}
-
-void tx_drain(){
-    while(count>0 && Serial.availableForWrite()>=q[head].len){
-        Serial.write(q[head].buf, q[head].len);
-        head=(uint8_t)((head+1)%TX_QUEUE_SLOTS); count--;
-    }
-}
-
-FILE: ultron_firmware/power.h
-```
-#pragma once
-#include <stdint.h>
-void background_tasks();
-float read_battery_voltage();
-
-#### ultron_firmware/power.cpp
-```
-#include "power.h"
-#include "config.h"
-#include "tx_queue.h"
-#include "protocol.h"
-
-extern volatile uint8_t fault_flags;   // defined in the .ino
-
-static float read_current(uint8_t pin){
-    float v=analogRead(pin)*(5.0f/1023.0f);
-    return (v-ACS712_ZERO_V)/ACS712_MV_PER_A;        // Amps
-}
-
-float read_battery_voltage(){
-    return analogRead(BATTERY_VOLTAGE_PIN)*BATTERY_ADC_SCALE;
-}
-
-void background_tasks(){
-    uint32_t now=millis();
-    static uint32_t last_batt_ms=0, last_curr_ms=0;
-    static uint8_t ci=0, filled=0;
-    static float curr_l[OVERCURRENT_SAMPLES], curr_r[OVERCURRENT_SAMPLES];
-
-    // Battery: publish ~1 Hz; latch critical fault at < 10.5 V.
-    if(now-last_batt_ms>=1000){
-        last_batt_ms=now;
-        float v=read_battery_voltage();
-        if(v<BATTERY_CRITICAL_V) SET_FAULT(FAULT_BIT_BATTERY);
-        uint8_t tmp[TX_MAX_PKT_SIZE];
-        tx_enqueue(tmp, build_battery_packet(tmp, v));
-    }
-    // Current: sample every 100 ms; 5-sample window = 500 ms sustained.
-    if(now-last_curr_ms>=100){
-        last_curr_ms=now;
-        curr_l[ci]=read_current(CURRENT_SENSE_L_PIN);
-        curr_r[ci]=read_current(CURRENT_SENSE_R_PIN);
-        ci=(uint8_t)((ci+1)%OVERCURRENT_SAMPLES);
-        if(filled<OVERCURRENT_SAMPLES) filled++;
-        if(filled==OVERCURRENT_SAMPLES){
-            float sl=0, sr=0;
-            for(uint8_t i=0;i<OVERCURRENT_SAMPLES;i++){ sl+=curr_l[i]; sr+=curr_r[i]; }
-            if((sl/OVERCURRENT_SAMPLES)>CURRENT_FAULT_AMPS ||
-               (sr/OVERCURRENT_SAMPLES)>CURRENT_FAULT_AMPS)
-                SET_FAULT(FAULT_BIT_OVERCURRENT);
-        }
-    }
-}
-
-FILE: ultron_firmware/faults.h
-```
-#pragma once
-#include <stdint.h>
-const char* fault_name(uint8_t bit);
-
-#### ultron_firmware/faults.cpp  (debug helper only)
-```
-#include "faults.h"
-const char* fault_name(uint8_t bit){
-    switch(bit){
-        case 0: return "ESTOP";
-        case 1: return "OVERCURRENT";
-        case 2: return "WATCHDOG";
-        case 3: return "IMU";
-        case 4: return "ENCODER";
-        case 5: return "BATTERY";
-        case 6: return "HEARTBEAT";
-        case 7: return "RESERVED";
-    }
-    return "?";
-}
 
 11.4 FLASH INSTRUCTIONS
 ```
@@ -2269,6 +2502,7 @@ arduino-cli upload -p /dev/ultron_arduino --fqbn arduino:avr:mega:cpu=atmega2560
 
 minicom -D /dev/ultron_arduino -b 115200
 # Expected: "ultron ready. RAM: XXXX" (RAM > 5500)
+```
 
 ---
 
@@ -2285,45 +2519,84 @@ JETSON CONTAINER:
 LAPTOP (docker compose):
   nav2_slam container       (EKF + SLAM + Nav2)   ← required
   rviz2 container           (visualization — on demand)
+  ultron_web container      (web control system, Section 19 — on demand)
   (No Zenoh router — removed in v4.2 B3)
 
+  EKF PLACEMENT (P1 — default laptop):
+    laptop_bringup.launch.py runs the EKF unless run_ekf:=false.
+    When the Jetson runs it onboard (ekf_onboard:=true), start this
+    container with run_ekf:=false to keep a single odom→base_link (B4):
+      docker compose exec nav2_slam \
+        ros2 launch /ultron_laptop/launch/laptop_bringup.launch.py run_ekf:=false
+
 ```
-FILE: /mnt/ssd/ultron/jetson/launch/jetson_bringup.launch.py
+FILE: /mnt/ssd/ultron/jetson/launch/jetson_bringup.launch.py  (r4 — ekf_onboard option)
 ```
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
+    params_file = '/ultron_ws/config/params.yaml'
+    ekf_params_file = '/ultron_ws/config/ekf_params.yaml'
+    logging_enabled = LaunchConfiguration('logging_enabled')
+    mission_id = LaunchConfiguration('mission_id')
+    ekf_onboard = LaunchConfiguration('ekf_onboard')
+
     return LaunchDescription([
 
+        DeclareLaunchArgument('logging_enabled', default_value='false',
+                              description='Enable onboard JSONL pilot logger'),
+        DeclareLaunchArgument('mission_id', default_value='',
+                              description='Pilot mission id (required if '
+                                          'logging_enabled:=true)'),
+        # P1 (audit): move EKF from the laptop to the Jetson to shrink the
+        # network/clock dependency (risk R5). B4 rule: run this ONLY with the
+        # laptop EKF disabled (laptop launch run_ekf:=false) so there is a
+        # single odom->base_link publisher.
+        DeclareLaunchArgument('ekf_onboard', default_value='false',
+                              description='Run robot_localization EKF onboard '
+                                          '(disable the laptop EKF: '
+                                          'run_ekf:=false)'),
+
         Node(package='rplidar_ros',
-             executable='rplidar_composition',
+             executable='rplidar_node',
              name='rplidar', output='screen',
-             parameters=[{'serial_port':'/dev/ultron_lidar',
-                          'serial_baudrate':115200,
-                          'frame_id':'laser_link',
-                          'inverted':False,
-                          'angle_compensate':True,
-                          'scan_mode':'Standard'}]),
+             parameters=[params_file]),
 
         Node(package='ultron_onboard',
-             executable='kinect_driver_node', name='kinect_driver', output='screen'),
+             executable='kinect_driver_node',
+             name='kinect_driver', output='screen',
+             parameters=[params_file]),
 
         Node(package='ultron_onboard',
-             executable='depth_to_scan_node', name='depth_to_scan', output='screen'),
+             executable='depth_to_scan_node',
+             name='depth_to_scan', output='screen',
+             parameters=[params_file]),
 
         Node(package='ultron_onboard',
-             executable='safety_node', name='ultron_safety_node', output='screen'),
+             executable='safety_node',
+             name='ultron_safety_node', output='screen',
+             parameters=[params_file]),
 
         Node(package='ultron_onboard',
-             executable='serial_node', name='ultron_serial_node', output='screen',
-             parameters=[{'serial_port':'/dev/ultron_arduino',
-                          'serial_baud':115200}]),
+             executable='serial_node',
+             name='ultron_serial_node', output='screen',
+             parameters=[params_file]),
 
-        # Static TFs — adjust xyz to physical measurements
+        # P1: onboard EKF (optional). Single odom->base_link publisher (B4).
+        Node(package='robot_localization', executable='ekf_node',
+             name='ekf_filter_node', output='screen',
+             parameters=[ekf_params_file],
+             condition=IfCondition(ekf_onboard)),
+
+        # Static TFs — adjust xyz to physical measurements (Bible §2.3).
         Node(package='tf2_ros', executable='static_transform_publisher',
              name='base_to_laser',
-             arguments=['0.10','0.0','0.12','0','0','0','1','base_link','laser_link']),
+             arguments=['0.10','0.0','0.12','0','0','0','1',
+                        'base_link','laser_link']),
 
         Node(package='tf2_ros', executable='static_transform_publisher',
              name='base_to_kinect',
@@ -2333,15 +2606,23 @@ def generate_launch_description():
 
         Node(package='tf2_ros', executable='static_transform_publisher',
              name='base_to_imu',
-             arguments=['0','0','0.05','0','0','0','1','base_link','imu_link']),
+             arguments=['0','0','0.05','0','0','0','1',
+                        'base_link','imu_link']),
 
-        # Optional pilot logging (Section 17) — disabled by default
+        # Optional pilot logging (Section 17) — disabled by default.
         Node(package='ultron_onboard', executable='data_logger_node',
              name='ultron_data_logger', output='screen',
-             parameters=[{'log_dir':'/mnt/ssd/ultron/logs',
-                          'enabled':False}]),
+             parameters=[params_file,
+                         {'enabled': logging_enabled,
+                          'mission_id': mission_id}]),
     ])
 ```
+
+EKF-ONBOARD RULE (P1 — B4, single odom→base_link TF):
+  - Default: EKF runs on the LAPTOP (laptop_bringup / localization launch).
+  - To run it onboard the Jetson: add `ekf_onboard:=true` here AND disable the
+    laptop EKF with `run_ekf:=false` (laptop docker-compose command arg).
+  - Never run both — two publishers of odom→base_link break TF (B4).
 
 12.2 MANDATORY STARTUP ORDER (v4.2 B3 — no router needed)
 ```
@@ -3127,6 +3408,35 @@ python -m pytest -q software/web/tests      # 45 tests
 On the bench: bring up the full stack (§18), verify `/api/status`, user login
 with the PIN, go-to-room, and that admin cannot command without the
 admin_control override.
+
+### 19.9 Demo / simulation mode (`--sim`) + reserved topic slots
+
+**`--sim` demo mode (production-safe):** `ultron_web --sim` runs a
+simulator (generated robot state + depth/map feeds) and enables the
+`?demo=1` login hook so the dashboards can be showcased without a robot:
+
+```bash
+python3 -m server.main --db /tmp/demo.db --sim
+# http://127.0.0.1:8080/user?demo=1
+# http://127.0.0.1:8080/admin?demo=admin
+# http://127.0.0.1:8080/admin?demo=admin_control#/live
+```
+
+`/api/demo/session` issues a session token WITHOUT credentials **only in
+`--sim` mode** (gated by `SIM_MODE`); in production it returns 404. The
+webserver never exposes the hook without the flag.
+
+**Reserved topic slots (P2 — InsightV1.0 sensor drop-in):** documented so new
+sensors need no redesign; a cheap DHT22/SCD40 can validate the pattern today:
+
+| Topic | Type | QoS | Purpose |
+|---|---|---|---|
+| `/ultron/env` | EnvironmentalData (or custom UltronEnv: temp °C, humidity %, CO2 ppm) | RELIABLE | Environment sensing (DHT22/SCD40) — InsightV1.0 |
+| `/ultron/occupancy` | OccupancyGrid (or count) | RELIABLE | Room occupancy estimate |
+| `/diagnostics` | DiagnosticArray | RELIABLE | Node health (safety_node already publishes, P2) |
+
+The Command Centre (`ultron_web`) can later subscribe to `/diagnostics` for
+fleet health without new plumbing.
 
 ---
 
