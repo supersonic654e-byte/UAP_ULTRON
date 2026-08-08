@@ -55,3 +55,6 @@ software/
 containers reuse the same base image family. The pure-logic modules
 (`ultron_protocol`, `safety_logic`, `depth_scan_logic`) are unit-tested
 offline in `../../tests/scripts/` with no ROS runtime required.
+
+CI: `.github/workflows/software-test.yml` runs the offline unit tests on every
+push that touches `software/**` or `tests/scripts/**`.

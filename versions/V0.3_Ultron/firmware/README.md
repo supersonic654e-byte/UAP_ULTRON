@@ -35,6 +35,9 @@ arduino-cli upload -p /dev/ultron_arduino --fqbn arduino:avr:mega:cpu=atmega2560
 
 or use the helpers: `deploy/scripts/build_firmware.sh`, `flash_firmware.sh`.
 
+CI: `.github/workflows/firmware-build.yml` compiles this sketch on every push
+that touches `firmware/**` (arduino-cli, Mega 2560, `MAKEFLAGS=-j2`).
+
 ## Closed-loop velocity control (P0)
 
 `WHEEL_PID_ENABLED=1` (default) closes the loop on measured wheel speed
