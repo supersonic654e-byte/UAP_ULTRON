@@ -33,14 +33,14 @@
 | Infrastructure | complex | basic WiFi |
 | Privacy model | video-based | anonymous features |
 
-## Roadmap-to-market (from the pitch)
+## Roadmap-to-market
 
 - InsightV1.0: environment + logistics + behaviour intelligence (first real
   deployment).
 - VitalsV2.0: patient monitoring add-on.
 - MedAssistV3.0: AI diagnosis/outbreak prediction.
 - Business model: free pilot units → hardware + cloud subscription → regional
-  scale. (See the pitch deck for the financial plan.)
+  scale.
 
 ## Honest caveats
 

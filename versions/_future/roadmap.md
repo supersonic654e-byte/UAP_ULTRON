@@ -1,7 +1,7 @@
 # UAP_ULTRON — Future Generations Roadmap: Ultron_VitalsV2.0 & Ultron_MedAssistV3.0
 
 > Summary-level roadmap for the generations that follow Ultron_insightV1.0.
-> Sources: [`../../docs/10_architecture/ai_architecture.md`](../../docs/10_architecture/ai_architecture.md) and [`../../docs/40_business/pitch_deck.docx`](../../docs/40_business/pitch_deck.docx).
+> Sources: [`../../docs/10_architecture/ai_architecture.md`](../../docs/10_architecture/ai_architecture.md).
 > These are **future** versions. Nothing here changes the current Ultron_V0.3 build (`../V0.3_Ultron/implementation_bible.md`).
 
 ---
@@ -70,5 +70,5 @@ COLLECT DATA → FIND PATTERNS → MAKE PREDICTIONS → ACT → LEARN
 ## Roadmap Notes
 
 - Each version is an **incremental addition** to the UAP_ULTRON platform — the architecture (containers, data pipeline, Command Centre, safety) is designed so that new generations add modules rather than require a rebuild.
-- Commercial/clinical claims remain "to be validated in pilot" — see BEARSUMMIT_SPEECH.docx for the market narrative and financial projections.
+- Commercial/clinical claims remain "to be validated in pilot" — no market or financial projections are carried into the project documents.
 - **Privacy and data minimization apply to every generation**, including future patient-monitoring versions: identifiable data requires explicit consent and approval, and the default remains anonymous derived features.

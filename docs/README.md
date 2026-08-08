@@ -8,7 +8,7 @@ docs/
 ├── 10_architecture/      system · ros · sensor_fusion · data_flow · safety · ai · diagrams
 ├── 20_engineering_process/  audit · risk_register · decisions (ADR) · quality_gates · changelog
 ├── 30_data_and_privacy/  data_collection_spec · privacy_policy · data_dictionary
-├── 40_business/          market_analysis · pitch_deck
+├── 40_business/          market_analysis
 └── 90_reference/         BOM_shared · datasheets · CAD
 ```
 
