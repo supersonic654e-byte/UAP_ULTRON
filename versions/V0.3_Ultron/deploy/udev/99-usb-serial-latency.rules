@@ -1,0 +1,2 @@
+# CH340G serial latency — CLONES ONLY. Harmless on a genuine 16U2 (cdc_acm).
+KERNEL=="ttyUSB*", ATTRS{idVendor}=="1a86", ATTR{latency_timer}="1"

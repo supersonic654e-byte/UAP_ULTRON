@@ -1,0 +1,51 @@
+# robot_localization EKF for Ultron_V0.3 (Bible §6.2 / B4).
+# The EKF is the SINGLE publisher of odom->base_link (B4). It fuses:
+#   odom0: /odom  -> x, y, yaw, vx, vyaw   (from serial_node, ~30 Hz)
+#   imu0:  /imu/data -> angular velocity roll/pitch/yaw (from serial_node)
+# world_frame: odom so the filter output connects to Nav2's map->odom.
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.1
+    two_d_mode: true
+    publish_tf: true                 # B4: single odom->base_link publisher
+    publish_acceleration: false
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    odom0: /odom
+    odom0_config: [true, true, false, false, false, true,
+                   true, false, false, false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_nodelay: false
+    odom0_differential: false
+    odom0_relative: false
+
+    imu0: /imu/data
+    imu0_config: [false, false, false, false, false, false,
+                  false, false, false, true, true, true,
+                  false, false, false]
+    imu0_queue_size: 10
+    imu0_nodelay: false
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: false
+
+    process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,
+                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01]

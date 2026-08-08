@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ultron_V0.3 shared CycloneDDS config (Bible Section 7.2).
+  MUST be byte-identical on the Jetson container mount and the laptop.
+
+  1) Replace the two <Peer address> values with your real Tailscale IPs
+     (run `tailscale ip -4` on each machine).
+  2) OFFLINE / LAN FALLBACK: for a fully offline lab session, replace the
+     two 100.x addresses with the machines' LAN IPs (e.g. 192.168.1.10 /
+     192.168.1.20) in BOTH copies. Swap back before field use.
+  3) ROS_DOMAIN_ID=42 must match <Domain id="42">.
+-->
+<CycloneDDS>
+  <Domain id="42">
+    <General>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <Peers>
+        <Peer address="100.73.42.11"/>   <!-- JETSON_TS_IP -->
+        <Peer address="100.73.42.22"/>   <!-- LAPTOP_TS_IP -->
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

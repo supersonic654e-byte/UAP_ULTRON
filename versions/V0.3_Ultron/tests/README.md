@@ -1,35 +1,39 @@
 # V0.3 — Tests
 
-Procedures + recorded results. The procedures are in the Bible §13; **this
-folder is where we keep the actual run logs and numbers** so a paper or a
-reviewer can reproduce them.
+Procedures, offline unit tests, hardware harnesses, and recorded results.
 
-## Planned layout
+## Layout
 
 ```
 tests/
-├── procedures/        # copies/summaries of Bible §13 procedures
-├── results/           # CSV/JSON of every run (date, conditions, N)
-├── plots/             # generated figures (from results, scripted)
-└── README.md
+├── procedures/        # runnable summaries of Bible §13 procedures
+├── scripts/           # automated checks
+│   ├── protocol_test.py      # CRC-8 + frame layout cross-check (offline)
+│   ├── test_safety_node.py   # zone/fusion math unit tests (offline)
+│   ├── test_depth_scan.py    # depth->scan projection unit tests (offline)
+│   ├── run_tests.sh          # runs all offline tests
+│   ├── motor_test.py         # bench: drive + speed clamp
+│   ├── estop_test.py         # bench: latch/release/clear (B7)
+│   ├── overcurrent_test.py   # bench: locked-wheel trip (B8)
+│   ├── runtime_test.py       # bench: battery voltage-vs-time CSV
+│   └── bag_checksum.py       # SHA-256 of a mission bag
+└── results/            # CSV/JSON of every run (date, conditions, N)
 ```
+
+## Run the offline tests (no hardware, no ROS)
+
+```bash
+cd scripts && ./run_tests.sh
+# or: pytest -q protocol_test.py test_safety_node.py test_depth_scan.py
+```
+
+## Hardware bench tests
+
+Robot lifted. See `procedures/README.md` for the full steps and commands.
 
 ## Recording convention
 
-Every result file:
+Every result file: `date`, `operator`, `firmware/software hash`,
+`battery_voltage`, `N`, mean ± std, units, deviation notes.
 
-- `date`, `operator`, `firmware/software hash`, `battery_voltage`.
-- Number of trials `N`, mean ± std, units.
-- Notes on any deviation from the procedure.
-
-## Must-have benchmark set (for the journal paper)
-
-- Odometry: straight 1.0 m ±0.02 m; 360° θ≈6.28 rad.
-- Twist accuracy vs commanded (0.3 m/s ±10%) — after velocity control.
-- E-stop latency (<5 ms) and stop distance at 0.35 m/s.
-- Overcurrent trip (locked wheels) and fuse behavior.
-- Runtime curve (voltage vs time) on a full pack.
-- Navigation: goal-success rate, path length/time ratio over N runs.
-- Mapping/localization: AMCL pose error.
-
-> No benchmark is real until its CSV is here. That is the rule.
+> No benchmark is real until its CSV is in `results/`. That is the rule.

@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  ultron_onboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ultron_onboard
+    restart: unless-stopped
+    # v4.2r2 D2: REQUIRED for CycloneDDS P2P (bridge/NAT breaks bidirectional
+    # discovery).
+    network_mode: host
+    devices:
+      - /dev/ultron_arduino:/dev/ultron_arduino
+      - /dev/ultron_lidar:/dev/ultron_lidar
+      - /dev/bus/usb:/dev/bus/usb
+    privileged: false
+    group_add:
+      - dialout
+      - plugdev
+    volumes:
+      - /mnt/ssd/ultron/config/cyclonedds/cyclonedds.xml:/ultron_ws/config/cyclonedds.xml:ro
+      - ultron_maps:/ultron_ws/maps
+      - /mnt/ssd/ultron/logs:/ultron_ws/logs
+    environment:
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///ultron_ws/config/cyclonedds.xml
+      - ROS_DOMAIN_ID=42
+    # v4.2r3 (§3.6 Root Cause 1): keep the host alive — OOM killer eats the
+    # container, never the host.
+    deploy:
+      resources:
+        limits:
+          memory: 2500M
+    memswap_limit: 3500M
+    healthcheck:
+      test: ["CMD", "ros2", "node", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    tmpfs:
+      - /tmp
+
+volumes:
+  ultron_maps:

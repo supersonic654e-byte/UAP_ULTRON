@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  nav2_slam:
+    build:
+      context: ./container
+      dockerfile: Dockerfile
+    container_name: ultron_nav2_slam
+    restart: unless-stopped
+    # v4.2r2 D2: REQUIRED for CycloneDDS P2P.
+    network_mode: host
+    environment:
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///ultron_laptop/config/cyclonedds.xml
+      - ROS_DOMAIN_ID=42
+    volumes:
+      - ultron_maps:/ultron_laptop/maps
+    command: ["ros2", "launch", "/ultron_laptop/launch/laptop_bringup.launch.py"]
+
+  rviz2:
+    build:
+      context: ./rviz2
+      dockerfile: Dockerfile
+    container_name: ultron_rviz2
+    network_mode: host
+    environment:
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///ultron_laptop/config/cyclonedds.xml
+      - ROS_DOMAIN_ID=42
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./rviz2/config:/ultron_rviz:ro
+    stdin_open: true
+    tty: true
+
+volumes:
+  ultron_maps:

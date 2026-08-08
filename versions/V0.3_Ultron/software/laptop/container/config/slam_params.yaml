@@ -1,0 +1,54 @@
+# slam_toolbox parameters for Ultron_V0.3 (SLAM mapping mode).
+slam_toolbox:
+  ros__parameters:
+    use_sim_time: false
+    mode: mapping                  # mapping (online); also supports localization
+
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    use_scan_matching: true
+    use_scan_barycenter: true
+
+    # QoS: /scan is published BEST_EFFORT by rplidar (§7.4).
+    scan_subscription_qos: best_effort
+
+    min_laser_range: 0.15
+    max_laser_range: 12.0
+    minimum_time_interval: 0.0
+    transform_publish_period: 0.02
+    map_update_interval: 5.0
+    resolution: 0.05
+
+    # Loop closure / solver
+    minimum_travel_heading: 0.5
+    minimum_travel_distance: 0.15
+    position_covariance_scale: 0.1
+    orientation_covariance_scale: 0.1
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 4.0
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_maximum_distance: 3.0
+    do_loop_closing: true
+    loop_match_chain: 4.0
+    correlation_search_space_dimension: 0.6
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.03
+    loop_matching_linear_variance: 0.05
+    loop_matching_angular_variance: 0.3
+
+    ceres_scan_matcher:
+      plugin: "ceres_scan_matcher::CeresScanMatcher"
+      ceres_linear_adder: 1.0
+      ceres_quadratic_adder: 1.0
+      ceres_log_adder: 1.0
+      ceres_weight: 1.0
+
+    scan_matcher:
+      plugin: "scanmatcher::ScanMatcher"
+
+    plugin: "slam_toolbox::SlamToolboxPlugin"

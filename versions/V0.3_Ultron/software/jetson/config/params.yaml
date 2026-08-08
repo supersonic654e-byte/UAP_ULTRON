@@ -1,0 +1,50 @@
+# Ultron_V0.3 onboard params (Bible §9). Consumed by jetson_bringup.launch.py.
+
+ultron_safety_node:
+  ros__parameters:
+    stop_dist: 0.35          # STOP zone (m) — immediate zero velocity
+    slow_dist: 0.70          # SLOW zone (m) — linear interpolation
+    lidar_priority_dist: 1.0 # LiDAR governs exclusively below this (m)
+    kinect_min: 1.0          # Kinect contributes only >= 1.0 m
+    kinect_max: 3.0          # ...and only <= 3.0 m
+    front_arc_deg: 60.0      # sensor arc fused for longitudinal safety
+    max_speed_mps: 0.45      # teleop clamp (autonomous is 0.35 via Nav2)
+    lidar_stale_sec: 1.0     # LiDAR stale > 1 s -> STOP
+    kinect_stale_sec: 1.0    # Kinect stale > 1 s -> degrade to LiDAR-only
+    enforce_rate: 20.0       # safety loop Hz
+    heartbeat_rate: 10.0     # /ultron/heartbeat Hz
+
+kinect_driver:
+  ros__parameters:
+    roi_x: 160               # ROI offset x
+    roi_y: 180               # ROI offset y
+    roi_w: 320               # ROI width
+    roi_h: 120               # ROI height
+    target_fps: 8.0          # v4.2r3 default (drop to 5 only if §3.6 exceeded)
+    frame_id: kinect_depth_frame
+    tilt_deg: 0.0            # mount provides the -10°; tilt motor stays level
+
+depth_to_scan:
+  ros__parameters:
+    roi_w: 320
+    roi_h: 120
+    kinect_fx: 574.0527954
+    cx_roi: 159.5
+    tilt_deg: -10.0          # mount tilt (matches static TF)
+    min_range_m: 0.5         # Kinect dead zone
+    max_range_m: 4.0
+    frame_id: kinect_depth_frame
+
+ultron_serial_node:
+  ros__parameters:
+    serial_port: /dev/ultron_arduino
+    serial_baud: 115200
+
+rplidar:
+  ros__parameters:
+    serial_port: /dev/ultron_lidar
+    serial_baudrate: 115200
+    frame_id: laser_link
+    inverted: false
+    angle_compensate: true
+    scan_mode: Standard

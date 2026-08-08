@@ -2,6 +2,26 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
+## 2026-08-08 — Verified V0.3 software system framework (Sadnan Sajid355)
+
+- `versions/V0.3_Ultron/firmware/` — buildable Arduino Mega 2560 sketch
+  (`ultron_firmware/`): full protocol, encoders, two-PWM motors, TX queue,
+  power/overcurrent, fault bits + P0 wheel-velocity PID and P1 IMU DLPF +
+  gyro zero-offset. Compiles clean with `arduino-cli` (5 % flash, 9 % RAM).
+- `versions/V0.3_Ultron/software/jetson/` — ROS 2 `ultron_onboard` package
+  (serial/safety/kinect/depth-to-scan/data-logger nodes), Dockerfile,
+  compose (host net, mem cap, healthcheck), CycloneDDS config, params, launch.
+- `versions/V0.3_Ultron/software/laptop/` — Nav2/EKF/SLAM container
+  (nav2_params with B6 0.35 m/s cap + AMCL best-effort QoS, ekf_params B4,
+  slam_params), localization mode, RViz2 config, ops scripts.
+- `versions/V0.3_Ultron/tests/` — offline unit tests (protocol CRC/frames,
+  safety zones, depth->scan) + hardware bench harnesses + procedures/results.
+- `versions/V0.3_Ultron/calibration/` — wheel/encoder/battery/IMU tools.
+- `versions/V0.3_Ultron/deploy/` — udev, systemd, chrony, build/flash scripts.
+- `versions/V0.3_Ultron/data_pilot/` — `feature_extract.py` (anonymous motion
+  features), mission index/templates.
+- CI: `software-test.yml` (offline tests) + `firmware-build.yml` sketch-path fix.
+
 ## 2026-08-08 — V0.3 monorepo restructure (Team_Supersonic)
 
 - Created the UAP_ULTRON monorepo layout (docs/, versions/, .github/).

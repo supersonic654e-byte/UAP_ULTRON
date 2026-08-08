@@ -1,0 +1,2 @@
+# Ultron_V0.3 RPLiDAR A1M8 (CP210x) -> /dev/ultron_lidar
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="ultron_lidar", MODE="0666"
