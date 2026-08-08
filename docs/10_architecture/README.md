@@ -7,6 +7,7 @@ Cross-version architecture knowledge (not tied to one robot build).
 | `system_architecture.md` | The three layers, design intent, industrial-grade considerations |
 | `ros_architecture.md` | ROS 2 stack, node graph, QoS, TF tree, transport |
 | `sensor_fusion.md` | EKF fusion chain, build blocks, tuning |
+| `fusion_build_parts.md` | Reusable fusion components (Part 1–6) with interfaces |
 | `data_flow.md` | Up/down data paths, bandwidth, latency budget |
 | `safety_architecture.md` | Layered safety, watchdogs, E-stop, zones |
 | `ai_architecture.md` | collect → find patterns → predict (InsightV1.0+) |
