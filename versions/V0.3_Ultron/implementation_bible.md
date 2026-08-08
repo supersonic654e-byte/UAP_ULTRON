@@ -2961,6 +2961,74 @@ CALIBRATION (required before final deployment):
   ☐ Kinect camera calibration (ros2 run camera_calibration)
   ☐ IMU zero-offset verified at startup (stationary 1 s)
 
+## Section 18 — END-USER DEPLOYMENT (TWO-BUNDLE INSTALL)
+
+The complete autonomous system is delivered to an end user as **two install
+bundles** (one per machine) plus one **firmware flash**. Install both bundles,
+connect the machines with **Tailscale**, and the system runs as one robot.
+Transport is **Tailscale + CycloneDDS** — Zenoh was removed in v4.2 (B3).
+
+### 18.1 The two bundles
+
+| Bundle | Runs on | Provides |
+|---|---|---|
+| **Jetson bundle** | Jetson Nano (Ubuntu 20.04 host, Docker) | serial, safety, kinect, depth-to-scan, data-logger nodes + static TFs |
+| **Laptop bundle** | Laptop (Ubuntu 22.04, Docker) | EKF, SLAM / AMCL, Nav2, RViz2, teleop, bag recording |
+| **Firmware** (flash) | Arduino Mega 2560 R3 | motor drive, encoders, IMU, E-stop, watchdogs, protocol |
+
+The bundles are the `software/jetson/` and `software/laptop/` folders in this
+repo, distributed as zips. No ROS installation is required on either host —
+Docker only.
+
+### 18.2 Prerequisites (outside the bundles)
+
+1. Robot assembled per §2 (BOM, wiring, power; B1/D1/H1 notes).
+2. Firmware flashed (§11.4); calibration done (§13).
+3. One Tailscale account, both machines logged in (§4.1).
+4. Jetson host prep: SSD at `/mnt/ssd` by UUID (nofail), Docker data-root on
+   SSD (§3.4), udev rules (§5.4), Tailscale pinned 1.68.2, chrony (§4.5).
+5. Laptop: Docker, Tailscale, chrony server (§4.5).
+
+### 18.3 The only per-user config
+
+Edit the SHARED `cyclonedds.xml` on both machines with the two Tailscale IPs
+(`tailscale ip -4`); use LAN IPs for offline lab sessions (§7.2). Keep the
+file byte-identical on both machines.
+
+### 18.4 Build & install
+
+Jetson:
+```
+./deploy/scripts/install_udev.sh
+./deploy/scripts/install_chrony.sh jetson <LAPTOP_TS_IP>
+sudo ufw allow 7400:7500/udp && sudo ufw allow 41641/udp
+cd software/jetson && docker compose build --build-arg MAKEFLAGS=-j2
+docker compose up -d
+```
+Laptop:
+```
+sudo ufw allow 7400:7500/udp && sudo ufw allow 41641/udp
+./deploy/scripts/install_chrony.sh laptop
+cd software/laptop && docker compose build
+docker compose up -d nav2_slam
+```
+
+### 18.5 Startup order
+
+1. Jetson: `docker compose up -d` → confirm `Serial connected ...`,
+   `Kinect depth stream active.`, `Safety node active ...`.
+2. Laptop: `nav2_slam`; RViz2 on demand.
+3. Verify from the laptop (§7.5): `ros2 topic list`, `ros2 topic hz`.
+4. Teleop or 2D Nav Goal (autonomous ≤ 0.35 m/s, laptop present — B5).
+
+### 18.6 First-run failures
+
+90% of first-run failures are: wrong `cyclonedds.xml` IPs / firewall ports
+not opened on BOTH machines; AMCL `/scan` QoS mismatch (`sensor_data_qos: 2`
+— already default in the bundle); missing `/dev/ultron_*` symlinks (udev);
+a latched software E-stop after a clean restart (`clear_faults`). Full
+troubleshooting: Section 15.
+
 ---
 
 END OF FINAL IMPLEMENTATION BIBLE — Ultron_V0.3

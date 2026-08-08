@@ -2,6 +2,19 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
+## 2026-08-08 — End-user deployment guide + Bible Section 18 (Team_Supersonic)
+
+- Added `docs/20_engineering_process/user_deployment_guide.md` — the detailed
+  two-bundle (Jetson + laptop) end-user install model, per-user config,
+  build/install steps, startup order, and first-run troubleshooting.
+- Added **Section 18 (END-USER DEPLOYMENT — TWO-BUNDLE INSTALL)** to the
+  implementation Bible, mirrored in the original `Ultron_V0.3.txt`.
+- Added `versions/V0.3_Ultron/deploy/README.md` quick-start; linked the guide
+  from `docs/README.md`, `software/README.md`, and the root README.
+- Re-verified the whole system: 27 Python modules compile, YAML/XML parse,
+  23 offline unit tests pass, firmware compiles, 0 broken links, 0 former
+  names / abandoned tokens / speech-deck references.
+
 ## 2026-08-08 — Verified V0.3 software system framework (Sadnan Sajid355)
 
 - `versions/V0.3_Ultron/firmware/` — buildable Arduino Mega 2560 sketch

@@ -58,3 +58,12 @@ offline in `../../tests/scripts/` with no ROS runtime required.
 
 CI: `.github/workflows/software-test.yml` runs the offline unit tests on every
 push that touches `software/**` or `tests/scripts/**`.
+
+## End-user deployment (two-bundle install)
+
+For a user with the physical robot: the **Jetson bundle** is this folder and
+the **laptop bundle** is `../laptop/`. Install them on the two machines, flash
+the firmware, edit the one shared `cyclonedds.xml` with the two Tailscale IPs,
+and start in order. Full detail:
+[`docs/20_engineering_process/user_deployment_guide.md`](../../../docs/20_engineering_process/user_deployment_guide.md)
+and Bible Section 18.

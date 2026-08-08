@@ -25,7 +25,7 @@ docs/                          cross-version knowledge
 ├── 10_architecture/           system · ros · sensor_fusion · safety · diagrams
 ├── 20_engineering_process/    audit · risk · ADRs · quality gates · changelog
 ├── 30_data_and_privacy/       collection spec · privacy · data dictionary
-├── 40_business/               market analysis · pitch
+├── 40_business/               market analysis
 └── 90_reference/              shared BOM · datasheets · CAD
 versions/
 ├── V0.1_Ultron/               retired history
