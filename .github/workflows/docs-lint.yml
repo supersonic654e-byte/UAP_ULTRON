@@ -37,11 +37,11 @@ jobs:
               raise SystemExit(1)
           print('all relative links OK')
           PY
-      - name: Check no forbidden version tokens in new content
+      - name: Check no abandoned-payload tokens in content
         run: |
           set -euo pipefail
-          if grep -rniE 'Robot_ODA_v1\.0|robot_odaV4|Ultron_UV' docs versions README.md; then
-            echo "Found stale version tokens (only allowed in former-name mapping)."
+          if grep -rniE 'Ultron_UV|UV_C|UV-C|uv_controller|FAULT_BIT_UV|PKT_UV' docs versions README.md; then
+            echo "Found abandoned-payload tokens; remove them."
             exit 1
           fi
-          echo "stale-token check OK"
+          echo "abandoned-token check OK"
