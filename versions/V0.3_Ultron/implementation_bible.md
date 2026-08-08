@@ -3029,6 +3029,105 @@ not opened on BOTH machines; AMCL `/scan` QoS mismatch (`sensor_data_qos: 2`
 a latched software E-stop after a clean restart (`clear_faults`). Full
 troubleshooting: Section 15.
 
+## Section 19 — WEB CONTROL SYSTEM (ADMIN DASHBOARD + USER PANEL)
+
+A live web control layer for Ultron_V0.3. The **admin dashboard** is the
+"live server of the robot"; the **user panel** is a remote control webapp.
+Both run from the laptop (the V0.3 "cloud") inside the `ultron_web`
+container, on the same CycloneDDS domain as the robot.
+
+### 19.1 Roles & access
+
+| Role | Where | Credential | Can do |
+|---|---|---|---|
+| **User** | `/user` control panel | 4-digit PIN | Remote operation: camera + obstacle detection, live map, "go to room…", teleop, notifications, activity |
+| **Admin** | `/admin` dashboard | 10-char admin password | READ-ONLY: overview, data-collection (§17) view, alerts, settings (show/change the PIN, room targets) |
+| **Admin control** | `/admin` Live page | re-enter the SAME 10-char password | The ONLY way the admin operates the robot + sees live camera/sensors. Logged. |
+
+The user PIN is shown and changed **only by the admin** (Settings).
+
+### 19.2 Architecture
+
+```
+User/Admin browser → HTTP/WebSocket → ultron_web (FastAPI, laptop)
+   ├── reads:  /odom /scan /kinect/scan /kinect/depth/image_raw /map
+   │           /battery/state /ultron/fault /ultron/heartbeat  (CycloneDDS)
+   └── writes: /cmd_vel (teleop), /navigate_to_pose (rooms), /ultron/clear_faults
+```
+
+The robot is always connected to the admin dashboard while both are online
+(heartbeat ~5 Hz + camera/map streams). If the laptop (web server) goes
+offline the web communication cuts off and the dashboards show OFFLINE;
+onboard safety (Jetson safety node + Arduino watchdogs) still protects the
+robot (§16).
+
+### 19.3 Components (repo: `versions/V0.3_Ultron/software/web/`)
+
+- `server/main.py` — FastAPI app: routes, WebSockets, auth, gating
+- `server/auth.py` — PIN + admin password (PBKDF2 hash), HMAC tokens, rate limit
+- `server/store.py` — SQLite (settings, activity, notifications, missions)
+- `server/robot_state.py` — live-state model + server-side command gating
+- `server/ros_bridge.py` — optional rclpy bridge (subscribes/publishes)
+- `server/detection.py` — obstacle/object detection from scans + depth row
+- `server/map_render.py` — dependency-free PNG renderer (map + depth feed)
+- `static/` — admin.html, user.html, style.css, app.js
+- `tests/` — 45 offline tests
+
+### 19.4 User panel features
+
+- Live camera feed (colorized depth) with continuous object/obstacle
+  detection: front/left/right ranges, STOP ≤ 0.35 m / SLOW ≤ 0.70 m,
+  obstacle clusters overlaid, avoidance status + clamp hint.
+- Live map (occupancy grid) with robot pose overlay.
+- Easy commands: "Go to Room 1/2/3", "Return to base" (targets editable by
+  admin), plus STOP + clear-faults.
+- Manual drive pad + arrow keys (teleop clamped to 0.45 m/s).
+- Live notifications, alerts, updates, and the user activity log.
+- All V0.3 live status: battery, faults, mode, heartbeat, speed, obstacle
+  distances (LiDAR + Kinect), navigation mode.
+
+### 19.5 Admin dashboard features
+
+- Executive overview (connection, battery, faults, mode, missions, alerts,
+  recent activity) matching the reference admin dashboard look.
+- Data-collection view (§17): mission records, notifications, log.
+- Alerts management; Settings (PIN show/change, room targets).
+- Live page (camera + map + operation) locked behind the admin_control
+  override (§19.1).
+
+### 19.6 Command safety (server-side, independent of ROS)
+
+- Teleop clamped to 0.45 m/s; yaw to 1.0 rad/s (firmware match).
+- "Go to room…" goals capped at 0.35 m/s (B6).
+- Commands rejected while the heartbeat is stale (`robot_not_live`).
+- `admin` is read-only; only `user` (PIN) or `admin_control` (10-char
+  password) can command the robot.
+
+### 19.7 Build & run
+
+```bash
+cd software/laptop && docker compose up -d ultron_web
+# open:  http://<laptop>:8080/admin  and  /user
+```
+
+First run prints the generated user PIN + admin password to the container
+log once. Change the PIN from admin → Settings. For world access use a
+secure tunnel (Tailscale Funnel / Cloudflare Tunnel / SSH reverse) **in front
+of** the PIN/password auth — never raw HTTP to the open internet.
+
+### 19.8 Testing
+
+Offline (no robot, no ROS):
+
+```bash
+pip install -r requirements.txt pytest httpx
+python -m pytest -q software/web/tests      # 45 tests
+```
+
+On the bench: bring up the full stack (§18), verify `/api/status`, user login
+with the PIN, go-to-room, and that admin cannot command without the
+admin_control override.
+
 ---
 
 END OF FINAL IMPLEMENTATION BIBLE — Ultron_V0.3

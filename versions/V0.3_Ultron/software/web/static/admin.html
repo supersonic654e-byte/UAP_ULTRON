@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultron V0.3 — Admin Command Centre</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Login -->
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="logo">U</div>
+    <h2 style="margin:0 0 4px">Admin Command Centre</h2>
+    <p class="muted" style="margin:0 0 18px">Ultron_V0.3 · read-only dashboard</p>
+    <label class="field" for="admin-pw">Admin password (10 characters)</label>
+    <input id="admin-pw" type="password" maxlength="64" placeholder="••••••••••" autocomplete="off">
+    <button class="btn primary big" id="admin-login" style="width:100%;margin-top:14px">Sign in</button>
+    <p class="muted" id="login-err" style="margin-top:12px;color:var(--red-600)"></p>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dash" class="hidden">
+  <div class="drawer-backdrop" onclick="toggleDrawer(false)"></div>
+  <aside class="drawer">
+    <div class="drawer-header">
+      <div class="brand-lockup"><div class="logo-mark">U</div><div><strong>ULTRON</strong><br><small>V0.3 Command</small></div></div>
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+
+  <header class="topbar">
+    <button class="btn" onclick="toggleDrawer(true)">☰</button>
+    <div class="brand-heading"><h1>Ultron V0.3 — Admin</h1><p>Live server of the robot · data collection pilot</p></div>
+    <div class="spacer"></div>
+    <span class="role-pill" id="role-pill">admin</span>
+    <button class="btn" onclick="logout()">Sign out</button>
+  </header>
+
+  <main class="shell">
+    <section id="view-overview">
+      <h2 class="section-title">Executive overview</h2>
+      <div class="status-strip" id="ov-strip">
+        <span class="pill neutral">connecting…</span>
+      </div>
+      <div class="grid grid-4" id="ov-stats"></div>
+      <div class="grid grid-2" style="margin-top:16px">
+        <div class="card"><h3>Recent activity</h3><table><thead><tr><th>time</th><th>role</th><th>action</th><th>detail</th></tr></thead><tbody id="ov-activity"></tbody></table></div>
+        <div class="card"><h3>Alerts</h3><div id="ov-alerts"><div class="empty">none</div></div></div>
+      </div>
+    </section>
+
+    <section id="view-live" class="hidden">
+      <h2 class="section-title">Live robot — ADMIN CONTROL</h2>
+      <div id="override-gate" class="card">
+        <h3>Robot operation &amp; live camera/sensors are admin-control only</h3>
+        <p class="muted">In normal operation the admin dashboard never operates the robot. Re-enter the 10-character admin password to enable a temporary <b>admin_control</b> session (robot operation + live camera + live sensors). This is logged.</p>
+        <label class="field" for="ctrl-pw">Admin override password</label>
+        <div style="display:flex;gap:10px;max-width:420px">
+          <input id="ctrl-pw" type="password" maxlength="64" placeholder="••••••••••">
+          <button class="btn primary" id="ctrl-enable">Enable control</button>
+        </div>
+      </div>
+      <div id="override-active" class="hidden">
+        <div class="grid grid-2">
+          <div class="card"><h3>Camera (depth + obstacle detection)</h3>
+            <div class="stream-box"><img id="live-cam" alt="camera"><span id="cam-off" class="pill neutral hidden">offline</span></div>
+            <div class="legend"><span><i style="background:#e6474f"></i>≤0.35 m STOP</span><span><i style="background:#d88c06"></i>≤0.70 m SLOW</span><span><i style="background:#28c876"></i>clear</span></div>
+          </div>
+          <div class="card"><h3>Live map</h3><div class="live-map"><img id="live-map" alt="map"><span id="map-off" class="muted">no map</span></div></div>
+        </div>
+        <div class="grid grid-3" style="margin-top:16px" id="ctrl-stats"></div>
+        <div class="card" style="margin-top:16px">
+          <h3>Operate the robot (admin_control)</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn" onclick="sendTwist(0.3,0)">Forward</button>
+            <button class="btn" onclick="sendTwist(-0.3,0)">Reverse</button>
+            <button class="btn" onclick="sendTwist(0,0.6)">Turn left</button>
+            <button class="btn" onclick="sendTwist(0,-0.6)">Turn right</button>
+            <button class="btn danger" onclick="sendStop()">STOP</button>
+            <button class="btn" onclick="clearFaults()">Clear faults</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-data" class="hidden">
+      <h2 class="section-title">Data collection (V0.3 pilot — Bible §17)</h2>
+      <div class="grid grid-3" id="data-cards"></div>
+      <div class="card" style="margin-top:16px"><h3>Missions</h3><table><thead><tr><th>mission</th><th>time</th><th>status</th></tr></thead><tbody id="data-missions"></tbody></table></div>
+    </section>
+
+    <section id="view-alerts" class="hidden">
+      <h2 class="section-title">Central alert management</h2>
+      <div class="card"><div id="alerts-list"><div class="empty">none</div></div></div>
+    </section>
+
+    <section id="view-settings" class="hidden">
+      <h2 class="section-title">Settings</h2>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>User control PIN (4 digits)</h3>
+          <p class="muted">This PIN lets users open the remote control panel. Shown here and changeable only by the admin.</p>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span id="pin-view" class="pill neutral" style="font-size:20px">••••</span>
+            <button class="btn" onclick="loadPin()">Show</button>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <input id="pin-new" type="text" maxlength="4" placeholder="new 4-digit PIN">
+            <button class="btn primary" onclick="changePin()">Change</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Navigation targets (rooms)</h3>
+          <p class="muted">"Go to …" buttons shown to users on the control panel are generated from these.</p>
+          <div id="rooms-editor"></div>
+          <button class="btn primary" style="margin-top:10px" onclick="saveRooms()">Save rooms</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+"use strict";
+let role = API.role();
+let rooms = {};
+
+const NAV = [
+  { id: "overview", label: "Overview", ico: "⌂" },
+  { id: "live",     label: "Live robot", ico: "◉" },
+  { id: "data",     label: "Data collection", ico: "▤" },
+  { id: "alerts",   label: "Alerts", ico: "!" },
+  { id: "settings", label: "Settings", ico: "⚙" }
+];
+
+API.onUnauthorized = () => { logout(); };
+
+function init() {
+  if (role) showDash(); else showLogin();
+}
+
+function showLogin() {
+  $("#login").classList.remove("hidden");
+  $("#dash").classList.add("hidden");
+}
+
+function showDash() {
+  $("#login").classList.add("hidden");
+  $("#dash").classList.remove("hidden");
+  $("#role-pill").textContent = role;
+  renderNav();
+  route();
+}
+
+function renderNav() {
+  $("#nav").innerHTML = NAV.map(n =>
+    '<a href="#/' + n.id + '" data-view="' + n.id + '"><span class="ico">' + n.ico + '</span>' + n.label + '</a>'
+  ).join("");
+  $$("#nav a").forEach(a => a.onclick = () => route());
+}
+
+function route() {
+  const id = (location.hash || "#/overview").replace("#/", "");
+  NAV.forEach(n => $("#view-" + n.id).classList.add("hidden"));
+  const target = $("#view-" + (NAV.some(n => n.id === id) ? id : "overview"));
+  if (target) target.classList.remove("hidden");
+  $$("#nav a").forEach(a => a.classList.toggle("active", a.dataset.view === id));
+  $$("#nav a").forEach(a => a.classList.remove("active"));
+  const el = $('#nav a[data-view="' + (NAV.some(n => n.id === id) ? id : "overview") + '"]');
+  if (el) el.classList.add("active");
+  if (id === "overview") loadOverview();
+  if (id === "live") setupLive();
+  if (id === "data") loadData();
+  if (id === "alerts") loadAlerts();
+  if (id === "settings") setupSettings();
+}
+
+/* ---- auth ---------------------------------------------------------------- */
+$("#admin-login").onclick = async () => {
+  const pw = $("#admin-pw").value;
+  $("#login-err").textContent = "";
+  try {
+    const r = await API.post("/api/login/admin", { password: pw });
+    role = r.role; API.set(r.role, r.token);
+    showDash();
+  } catch (e) { $("#login-err").textContent = e.message; }
+};
+
+function logout() { API.clear(); role = ""; showLogin(); }
+
+/* ---- overview ------------------------------------------------------------ */
+async function loadOverview() {
+  try {
+    const d = await API.get("/api/admin/dashboard");
+    const r = d.robot;
+    $("#ov-strip").innerHTML =
+      '<span class="pill ' + (r.connected ? "ok" : "warn") + '"><span class="dot"></span>' +
+      (r.connected ? "robot ONLINE" : "robot offline") + '</span>' +
+      '<span class="pill neutral">mode: ' + esc(r.mode || "idle") + '</span>' +
+      '<span class="pill ' + (r.faults.flags ? "danger" : "ok") + '">faults: ' +
+      (r.faults.names.length ? r.faults.names.join(" · ") : "none") + '</span>';
+    $("#ov-stats").innerHTML =
+      '<div class="card"><div class="stat"><span class="label">Battery</span><span class="value">' + fmtVoltage(r.battery_v) + '</span><span class="sub">critical 10.5 V</span></div></div>' +
+      '<div class="card"><div class="stat"><span class="label">Missions</span><span class="value">' + d.missions.length + '</span><span class="sub">planned/completed</span></div></div>' +
+      '<div class="card"><div class="stat"><span class="label">Alerts</span><span class="value">' + d.notifications.length + '</span><span class="sub">total logged</span></div></div>' +
+      '<div class="card"><div class="stat"><span class="label">Heartbeat</span><span class="value">' + (r.heartbeat_seq || 0) + '</span><span class="sub">seq counter</span></div></div>';
+    $("#ov-activity").innerHTML = d.activity.slice(0, 8).map(a =>
+      "<tr><td>" + fmtTime(a.ts) + "</td><td>" + esc(a.role) + "</td><td>" + esc(a.action) + "</td><td>" + esc(a.detail) + "</td></tr>"
+    ).join("") || '<tr><td colspan="4" class="empty">no activity yet</td></tr>';
+    $("#ov-alerts").innerHTML = d.notifications.slice(0, 6).map(n =>
+      '<div class="alert-row ' + esc(n.level) + '"><div class="ico">' + (n.level === "warning" ? "!" : n.level === "danger" ? "✕" : "i") + '</div><div><div class="t">' + esc(n.text) + '</div><div class="m">' + fmtTime(n.ts) + '</div></div></div>'
+    ).join("") || '<div class="empty">none</div>';
+  } catch (e) { toast(e.message, "danger"); }
+}
+
+/* ---- live / admin control ------------------------------------------------ */
+function setupLive() {
+  $("#override-active").classList.add("hidden");
+  $("#override-gate").classList.remove("hidden");
+  if (role === "admin_control") enableControlUI();
+}
+
+$("#ctrl-enable").onclick = async () => {
+  const pw = $("#ctrl-pw").value;
+  try {
+    const r = await API.post("/api/login/admin_control", { password: pw });
+    role = r.role; API.set(r.role, r.token);
+    enableControlUI();
+    toast("Admin control enabled — robot operation + live view unlocked", "ok");
+  } catch (e) { toast(e.message, "danger"); }
+};
+
+function enableControlUI() {
+  $("#override-gate").classList.add("hidden");
+  $("#override-active").classList.remove("hidden");
+  const cam = $("#live-cam"), map = $("#live-map");
+  startImageWS("/ws/camera", cam, off => $("#cam-off").classList.toggle("hidden", !off));
+  startImageWS("/ws/map", map, off => $("#map-off").classList.toggle("hidden", !off));
+  startStatusWS(snap => renderStatCards(snap, "#ctrl-stats"));
+}
+
+async function sendTwist(vx, wz) {
+  try { const r = await API.post("/api/cmd/twist", { vx, wz }); toast("cmd " + vx + " m/s", "ok"); }
+  catch (e) { toast(e.message, "danger"); }
+}
+async function sendStop() { try { await API.post("/api/cmd/stop"); toast("STOP sent", "ok"); } catch (e) { toast(e.message, "danger"); } }
+async function clearFaults() { try { await API.post("/api/cmd/clear_faults"); toast("clear-faults sent", "ok"); } catch (e) { toast(e.message, "danger"); } }
+
+/* ---- data collection ----------------------------------------------------- */
+async function loadData() {
+  try {
+    const d = await API.get("/api/admin/dashboard");
+    const active = d.missions.filter(m => m.status === "planned").length;
+    const done = d.missions.filter(m => m.status === "completed").length;
+    $("#data-cards").innerHTML =
+      '<div class="card"><div class="stat"><span class="label">Missions</span><span class="value">' + d.missions.length + '</span></div></div>' +
+      '<div class="card"><div class="stat"><span class="label">Planned</span><span class="value">' + active + '</span></div></div>' +
+      '<div class="card"><div class="stat"><span class="label">Completed</span><span class="value">' + done + '</span></div></div>';
+    $("#data-missions").innerHTML = d.missions.map(m =>
+      "<tr><td>" + esc(m.id) + "</td><td>" + fmtTime(m.ts) + "</td><td><span class='pill " +
+      (m.status === "completed" ? "ok" : "neutral") + "'>" + esc(m.status) + "</span></td></tr>"
+    ).join("") || '<tr><td colspan="3" class="empty">no missions recorded</td></tr>';
+  } catch (e) { toast(e.message, "danger"); }
+}
+
+/* ---- alerts -------------------------------------------------------------- */
+async function loadAlerts() {
+  try {
+    const d = await API.get("/api/admin/notifications");
+    $("#alerts-list").innerHTML = d.notifications.map(n =>
+      '<div class="alert-row ' + esc(n.level) + '"><div class="ico">' + (n.level === "warning" ? "!" : n.level === "danger" ? "✕" : "i") + '</div><div><div class="t">' + esc(n.text) + '</div><div class="m">' + fmtTime(n.ts) + '</div></div></div>'
+    ).join("") || '<div class="empty">none</div>';
+    await API.post("/api/admin/notifications/seen");
+  } catch (e) { toast(e.message, "danger"); }
+}
+
+/* ---- settings ------------------------------------------------------------ */
+async function loadPin() {
+  try { const d = await API.get("/api/admin/pin"); $("#pin-view").textContent = d.pin; }
+  catch (e) { toast(e.message, "danger"); }
+}
+async function changePin() {
+  const pin = $("#pin-new").value;
+  if (!/^\d{4}$/.test(pin)) { toast("PIN must be 4 digits", "danger"); return; }
+  try { await API.post("/api/admin/pin", { pin }); $("#pin-view").textContent = pin; toast("PIN updated", "ok"); }
+  catch (e) { toast(e.message, "danger"); }
+}
+async function setupSettings() {
+  try {
+    const d = await API.get("/api/admin/dashboard");
+    rooms = d.rooms || {};
+    $("#rooms-editor").innerHTML = Object.keys(rooms).map(k => {
+      const r = rooms[k];
+      return '<div style="display:grid;grid-template-columns:110px 60px 60px 60px 1fr;gap:8px;margin-bottom:8px">' +
+        '<input data-k="' + esc(k) + '" data-f="id" type="text" value="' + esc(k) + '">' +
+        '<input data-k="' + esc(k) + '" data-f="x" type="number" step="0.1" value="' + r.x + '">' +
+        '<input data-k="' + esc(k) + '" data-f="y" type="number" step="0.1" value="' + r.y + '">' +
+        '<input data-k="' + esc(k) + '" data-f="theta" type="number" step="0.1" value="' + r.theta + '">' +
+        '<input data-k="' + esc(k) + '" data-f="label" type="text" value="' + esc(r.label) + '"></div>';
+    }).join("");
+  } catch (e) { toast(e.message, "danger"); }
+}
+function saveRooms() {
+  const next = {};
+  $$("#rooms-editor input").forEach(inp => {
+    const k = inp.dataset.k, f = inp.dataset.f;
+    if (!next[k]) next[k] = {};
+    const v = inp.value;
+    next[k][f] = (f === "x" || f === "y" || f === "theta") ? parseFloat(v) : v;
+  });
+  API.post("/api/admin/rooms", { rooms: next }).then(() => {
+    rooms = next; toast("Rooms saved", "ok");
+  }).catch(e => toast(e.message, "danger"));
+}
+
+window.addEventListener("hashchange", route);
+init();
+</script>
+</body>
+</html>

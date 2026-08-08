@@ -2,6 +2,23 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
+## 2026-08-08 — Web Control System: admin dashboard + user panel (Sadnan Sajid355)
+
+- Added `versions/V0.3_Ultron/software/web/` — the "live server of the robot":
+  FastAPI backend (auth, SQLite store, ROS bridge, obstacle detection, PNG
+  map/depth streaming) + admin dashboard (`/admin`, demo-style, read-only by
+  default) and user control panel (`/user`, 4-digit PIN, remote operation).
+- Roles: user (PIN), admin (10-char password, read-only), admin_control
+  (re-enter the 10-char password → the only way the admin operates the robot
+  / sees live camera+sensors). PIN shown/changed by admin only.
+- User panel: live depth camera with obstacle/object detection, live map,
+  "go to room…" Nav2 goals, teleop (0.45 m/s clamp), notifications, activity.
+- Command safety gating server-side (robot-live check, velocity clamps).
+- Added `ultron_web` service to the laptop compose; 45 offline tests;
+  `software-test` CI extended to run them.
+- Bible Section 19 (Web Control System) added to `implementation_bible.md`
+  and mirrored in the original `Ultron_V0.3.txt`.
+
 ## 2026-08-08 — End-user deployment guide + Bible Section 18 (Team_Supersonic)
 
 - Added `docs/20_engineering_process/user_deployment_guide.md` — the detailed

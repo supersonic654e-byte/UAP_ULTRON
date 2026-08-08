@@ -35,5 +35,24 @@ services:
     stdin_open: true
     tty: true
 
+  # Ultron_V0.3 web control system — admin dashboard + user control panel.
+  # The laptop is the "live server of the robot": host networking, same
+  # CycloneDDS domain. Access: http://<laptop>:8080/admin and /user.
+  ultron_web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: ultron_web
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=file:///ultron_laptop/config/cyclonedds.xml
+      - ROS_DOMAIN_ID=42
+    volumes:
+      - ultron_web_data:/ultron_web/data
+      - ./container/config:/ultron_laptop/config:ro
+
 volumes:
   ultron_maps:
+  ultron_web_data:

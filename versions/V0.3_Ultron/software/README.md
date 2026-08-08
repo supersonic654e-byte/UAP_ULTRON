@@ -35,6 +35,11 @@ software/
     │       launch/laptop_localization.launch.py  (saved-map + AMCL mode)
     ├── rviz2/                    # Dockerfile, entrypoint, config/ultron.rviz
     └── scripts/record_bag.sh, save_map.sh, start_teleop.sh
+└── web/                      # Ultron_V0.3 web control system (laptop container)
+    ├── server/               # FastAPI + auth + SQLite + ROS bridge + detection
+    ├── static/               # admin dashboard (/admin) + user panel (/user)
+    ├── tests/                # 45 offline tests
+    └── Dockerfile, entrypoint.sh, requirements.txt
 ```
 
 ## Environment rules
@@ -64,6 +69,8 @@ push that touches `software/**` or `tests/scripts/**`.
 For a user with the physical robot: the **Jetson bundle** is this folder and
 the **laptop bundle** is `../laptop/`. Install them on the two machines, flash
 the firmware, edit the one shared `cyclonedds.xml` with the two Tailscale IPs,
-and start in order. Full detail:
+and start in order. The **web control system** (`../web/`) runs on the laptop
+as the "live server of the robot" — admin dashboard at `/admin` and user
+control panel at `/user`. Full detail:
 [`docs/20_engineering_process/user_deployment_guide.md`](../../../docs/20_engineering_process/user_deployment_guide.md)
-and Bible Section 18.
+and Bible Sections 18–19.

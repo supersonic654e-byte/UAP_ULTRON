@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultron V0.3 — User Control Panel</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- PIN gate -->
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="logo">U</div>
+    <h2 style="margin:0 0 4px">Ultron V0.3</h2>
+    <p class="muted" style="margin:0 0 6px">Remote robot control panel</p>
+    <div class="pin-dots" id="pin-dots">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+    <div class="keypad" id="keypad"></div>
+    <p class="muted" id="pin-err" style="color:var(--red-600);margin-top:12px"></p>
+  </div>
+</div>
+
+<!-- Panel -->
+<div id="panel" class="hidden">
+  <header class="topbar">
+    <div class="brand-heading"><h1>Ultron V0.3 — Control Panel</h1><p>Remote operation from anywhere with the web link + your PIN</p></div>
+    <div class="spacer"></div>
+    <span class="role-pill" id="conn-pill">connecting…</span>
+    <button class="btn" onclick="logout()">Sign out</button>
+  </header>
+
+  <main class="shell">
+    <div class="status-strip" id="status-strip">
+      <span class="pill neutral">waiting for data…</span>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Live camera — obstacle &amp; object detection</h3>
+        <div class="stream-box">
+          <img id="cam" alt="live depth camera">
+          <div class="stream-hud">
+            <span class="pill neutral" id="cam-state">offline</span>
+            <span class="pill neutral" id="cam-front">front —</span>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i style="background:#e6474f"></i>≤0.35 m STOP</span>
+          <span><i style="background:#d88c06"></i>≤0.70 m SLOW</span>
+          <span><i style="background:#28c876"></i>clear</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Live map</h3>
+        <div class="live-map"><img id="map" alt="map"><span id="map-off" class="muted">no map yet</span></div>
+        <p class="muted" style="font-size:12px">Robot pose is shown when a SLAM/AMCL map is published.</p>
+      </div>
+    </div>
+
+    <div class="grid grid-4" id="stat-cards" style="margin-top:16px"></div>
+
+    <div class="grid grid-2" style="margin-top:16px">
+      <div class="card">
+        <h3>Go to a target</h3>
+        <div class="target-grid" id="targets"></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn danger big" style="flex:1" onclick="sendStop()">⛔ STOP</button>
+          <button class="btn" style="flex:1" onclick="clearFaults()">Clear faults</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Manual drive</h3>
+        <div class="pad">
+          <span></span><button onclick="sendTwist(0.35,0)">▲</button><span></span>
+          <button onclick="sendTwist(0,0.6)">◀</button>
+          <button class="pad-center" onclick="sendStop()">STOP</button>
+          <button onclick="sendTwist(0,-0.6)">▶</button>
+          <span></span><button onclick="sendTwist(-0.35,0)">▼</button><span></span>
+        </div>
+        <p class="muted" style="text-align:center;margin-top:10px">Arrow keys also work. Teleop is clamped to 0.45 m/s; Nav2 goals to 0.35 m/s.</p>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:16px">
+      <div class="card"><h3>Live notifications &amp; alerts</h3><div id="alerts"><div class="empty">none</div></div></div>
+      <div class="card"><h3>My activity</h3><div id="activity"><div class="empty">no activity yet</div></div></div>
+    </div>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+<script>
+"use strict";
+let pin = "";
+
+function init() {
+  buildKeypad();
+  if (API.role() === "user") showPanel();
+}
+
+function buildKeypad() {
+  const keys = ["1","2","3","4","5","6","7","8","9","⌫","0","✓"];
+  $("#keypad").innerHTML = keys.map(k => "<button data-k='" + k + "'>" + k + "</button>").join("");
+  $$("#keypad button").forEach(b => b.onclick = () => press(b.dataset.k));
+}
+
+function press(k) {
+  $("#pin-err").textContent = "";
+  if (k === "⌫") { pin = pin.slice(0, -1); }
+  else if (k === "✓") { doLogin(); }
+  else if (pin.length < 4) { pin += k; }
+  renderDots();
+}
+
+function renderDots() {
+  $$("#pin-dots .dot").forEach((d, i) => d.classList.toggle("filled", i < pin.length));
+}
+
+async function doLogin() {
+  if (pin.length !== 4) { $("#pin-err").textContent = "Enter 4 digits"; return; }
+  try {
+    const r = await API.post("/api/login/user", { pin });
+    API.set(r.role, r.token);
+    showPanel();
+  } catch (e) { $("#pin-err").textContent = "Wrong PIN"; pin = ""; renderDots(); }
+}
+
+function logout() { API.clear(); location.reload(); }
+
+function showPanel() {
+  $("#login").classList.add("hidden");
+  $("#panel").classList.remove("hidden");
+  startLive();
+}
+
+/* ---- live streams -------------------------------------------------------- */
+function startLive() {
+  const cam = $("#cam");
+  startImageWS("/ws/camera", cam, off => {
+    $("#cam-state").textContent = off ? "offline" : "live";
+  });
+  startImageWS("/ws/map", $("#map"), off => {
+    $("#map-off").classList.toggle("hidden", !off);
+  });
+  startStatusWS(render, 200);
+  startAlertsWS(onAlert);
+  loadTargets();
+}
+
+function render(snap) {
+  const conn = snap.connected ? "robot ONLINE" : "robot OFFLINE";
+  $("#conn-pill").textContent = conn;
+  $("#conn-pill").className = "role-pill " + (snap.connected ? "pill ok" : "pill danger");
+
+  const ob = snap.lidar || {};
+  const front = ob.front;
+  const pill = front === null || front === undefined
+    ? '<span class="pill neutral">no obstacle data</span>'
+    : (front <= 0.35 ? '<span class="pill danger"><span class="dot"></span>STOP ' + front.toFixed(2) + ' m</span>'
+       : (front <= 0.70 ? '<span class="pill warn"><span class="dot"></span>SLOW ' + front.toFixed(2) + ' m</span>'
+          : '<span class="pill ok"><span class="dot"></span>CLEAR ' + front.toFixed(2) + ' m</span>'));
+  $("#status-strip").innerHTML =
+    '<span class="pill ' + (snap.connected ? "ok" : "danger") + '"><span class="dot"></span>' + conn + '</span>' +
+    pill +
+    '<span class="pill neutral">mode: ' + esc(snap.mode || "idle") + '</span>' +
+    '<span class="pill ' + (snap.faults.flags ? "danger" : "ok") + '">' +
+    (snap.faults.names.length ? esc(snap.faults.names.join(" · ")) : "no faults") + '</span>';
+
+  $("#cam-state").textContent = snap.connected ? "live" : "offline";
+  $("#cam-front").textContent = "front " + (front === null || front === undefined ? "—" : front.toFixed(2) + " m");
+
+  const k = snap.kinect || {};
+  const faults = faultNames(snap.faults && snap.faults.flags);
+  $("#stat-cards").innerHTML =
+    '<div class="card"><div class="stat"><span class="label">Battery</span><span class="value" style="font-size:20px">' + fmtVoltage(snap.battery && snap.battery.voltage) + '</span></div></div>' +
+    '<div class="card"><div class="stat"><span class="label">Speed</span><span class="value" style="font-size:20px">' + fmtNum(snap.odom && snap.odom.vx, 2) + ' m/s</span></div></div>' +
+    '<div class="card"><div class="stat"><span class="label">Obstacle front (LiDAR)</span><span class="value" style="font-size:20px">' + fmtNum(front, 2) + ' m</span></div></div>' +
+    '<div class="card"><div class="stat"><span class="label">Obstacle front (Kinect)</span><span class="value" style="font-size:20px">' + fmtNum(k.front, 2) + ' m</span></div></div>' +
+    '<div class="card"><div class="stat"><span class="label">Faults</span><span class="value" style="font-size:16px">' + (faults.length ? esc(faults.join(" · ")) : "none") + '</span></div></div>' +
+    '<div class="card"><div class="stat"><span class="label">Mode</span><span class="value" style="font-size:20px;text-transform:capitalize">' + esc(snap.mode || "idle") + '</span></div></div>';
+
+  renderActivity(snap);
+}
+
+/* ---- activity / alerts --------------------------------------------------- */
+let recentActivity = [];
+function renderActivity(snap) {
+  if (snap.last_cmd && snap.last_cmd.ts) {
+    const key = Math.round(snap.last_cmd.ts);
+    if (!recentActivity.length || recentActivity[recentActivity.length - 1].k !== key) {
+      recentActivity.push({
+        k: key,
+        text: "command vx=" + snap.last_cmd.vx + " wz=" + snap.last_cmd.wz,
+        time: snap.last_cmd.ts
+      });
+      if (recentActivity.length > 12) recentActivity.shift();
+      $("#activity").innerHTML = recentActivity.slice().reverse().map(a =>
+        '<div class="alert-row info"><div class="ico">»</div><div><div class="t">' + esc(a.text) + '</div><div class="m">' + fmtTime(a.time) + '</div></div></div>'
+      ).join("");
+    }
+  }
+}
+
+function onAlert(n) {
+  toast(n.text, n.level === "warning" ? "danger" : n.level);
+  const box = $("#alerts");
+  const row = '<div class="alert-row ' + esc(n.level) + '"><div class="ico">' + (n.level === "warning" ? "!" : n.level === "danger" ? "✕" : "i") + '</div><div><div class="t">' + esc(n.text) + '</div><div class="m">' + fmtTime(n.ts) + '</div></div></div>';
+  const cur = box.innerHTML === '<div class="empty">none</div>' ? "" : box.innerHTML;
+  box.innerHTML = row + cur;
+}
+
+/* ---- commands ------------------------------------------------------------ */
+async function loadTargets() {
+  const defaults = {
+    room1: { label: "Room 1", x: 2, y: 0, theta: 0 },
+    room2: { label: "Room 2", x: 0, y: 2, theta: 1.5708 },
+    room3: { label: "Room 3", x: -2, y: 0, theta: 3.1416 },
+    base:  { label: "Return to base", x: 0, y: 0, theta: 0 }
+  };
+  let rooms = defaults;
+  try {
+    const d = await API.get("/api/rooms");
+    if (d && d.rooms && Object.keys(d.rooms).length) rooms = d.rooms;
+  } catch (_) {}
+  $("#targets").innerHTML = Object.keys(rooms).map(k => {
+    const r = rooms[k];
+    return '<button class="target" data-room="' + esc(k) + '"><strong>' + esc(r.label || k) + '</strong><span>(' + r.x + ', ' + r.y + ' m)</span></button>';
+  }).join("");
+  $$("#targets .target").forEach(b => b.onclick = () => goTarget(b.dataset.room));
+}
+
+async function goTarget(roomId) {
+  try { const r = await API.post("/api/cmd/goal", { room_id: roomId }); toast("Navigating to " + roomId, "ok"); }
+  catch (e) { toast(e.message, "danger"); }
+}
+
+async function sendTwist(vx, wz) {
+  try { await API.post("/api/cmd/twist", { vx, wz }); }
+  catch (e) { toast(e.message, "danger"); }
+}
+async function sendStop() {
+  try { await API.post("/api/cmd/stop"); toast("Robot stop requested", "ok"); }
+  catch (e) { toast(e.message, "danger"); }
+}
+async function clearFaults() {
+  try { await API.post("/api/cmd/clear_faults"); toast("clear-faults sent", "ok"); }
+  catch (e) { toast(e.message, "danger"); }
+}
+
+/* arrow-key teleop */
+document.addEventListener("keydown", ev => {
+  if (API.role() !== "user") return;
+  const m = { ArrowUp: [0.35, 0], ArrowDown: [-0.35, 0],
+              ArrowLeft: [0, 0.6], ArrowRight: [0, -0.6] }[ev.key];
+  if (m) { ev.preventDefault(); sendTwist(m[0], m[1]); }
+});
+document.addEventListener("keyup", ev => {
+  if (API.role() !== "user") return;
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(ev.key)) sendStop();
+});
+
+init();
+</script>
+</body>
+</html>

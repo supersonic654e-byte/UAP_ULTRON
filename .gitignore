@@ -37,6 +37,7 @@ Thumbs.db
 .env
 *.key
 secrets/
+versions/V0.3_Ultron/software/web/data/
 
 # ---- large binaries ----
 *.pdf
