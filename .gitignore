@@ -1,0 +1,44 @@
+# ---- build artifacts ----
+build/
+log/
+install/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*.so
+
+# ---- ROS / colcon ----
+**/colcon_ws/install/
+**/colcon_ws/build/
+*.bag*
+rosbag2_*/
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- data (never commit raw pilot data) ----
+**/data_pilot/**/*.bag
+**/data_pilot/**/*.mcap
+**/data_pilot/**/raw_depth/
+**/*.jsonl
+*.rosbag
+
+# ---- firmware build ----
+*.elf
+*.hex
+*.o
+
+# ---- env / secrets ----
+.env
+*.key
+secrets/
+
+# ---- large binaries ----
+*.pdf
+*.step
+*.stl
+!docs/90_reference/datasheets/.gitkeep

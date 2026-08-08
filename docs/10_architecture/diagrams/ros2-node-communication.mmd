@@ -1,0 +1,33 @@
+flowchart LR
+    subgraph Laptop["Laptop (nav2_slam container + rviz2 + data sink)"]
+        AMCL[AMCL sensor_data_qos:2]
+        EKF[EKF publish_tf:true odom->base_link]
+        NAV2[Nav2 max_vel_x 0.35]
+        BAG[rosbag2 mcap]
+        DIAG[/diagnostics]
+    end
+
+    subgraph Jetson["Jetson container (host net, domain 42)"]
+        LID[RPLidar]
+        SAF[Safety node STOP<=0.35 SLOW<=0.70]
+        SER[serial_node]
+        DEP[kinect_driver + depth_to_scan]
+        LOG[data_logger]
+    end
+
+    LID -->|"/scan (best_effort)"| SAF
+    LID -->|"/scan (best_effort)"| AMCL
+    DEP -->|"/kinect/scan (best_effort)"| SAF
+    NAV2 -->|"/cmd_vel (reliable)"| SAF
+    SAF -->|"/safe_cmd_vel (reliable)"| SER
+    SAF -->|"/ultron/heartbeat (reliable) 10Hz"| SER
+    SER -->|"/odom (reliable) 33Hz"| EKF
+    SER -->|"/imu/data (reliable)"| EKF
+    SER -->|"/battery/state, /ultron/fault"| DIAG
+    EKF -->|"TF odom->base_link"| AMCL
+    AMCL -->|"TF map->odom"| NAV2
+    LOG -->|"JSONL -> /mnt/ssd/ultron/logs"| BAG
+    BAG -->|"mcap files"| DIAG
+
+    classDef rel fill:#e6ffe6;
+    class EKF,SAF,SER rel

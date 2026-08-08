@@ -1,0 +1,41 @@
+flowchart TB
+    subgraph L3["LAYER 3 — PILOT CLOUD (V0.3 laptop; Cloud/Command Centre on InsightV1.0)"]
+        N1[Nav2: costmaps, planner, controller]
+        N2[slam_toolbox mapping / AMCL localization]
+        N3[EKF robot_localization  P1 move to Jetson]
+        N4[RViz2 supervision]
+        N5[rosbag2 mcap: /odom /scan /kinect/scan /battery/state /ultron/*]
+        N6[feature_extract.py -> anonymous motion features]
+        N7[/diagnostics consumer]
+    end
+
+    subgraph L2["LAYER 2 — EDGE (Jetson Nano 4 GB now -> Orin Nano Super 8 GB)"]
+        E1[rplidar_ros -> /scan]
+        E2[ultron_kinect (Kinect 1414, ROI 320x120 @8FPS)]
+        E3[ultron_depth_to_scan -> /kinect/scan  camera_info-driven P1]
+        E4[ultron_safety_node -> /safe_cmd_vel, /ultron/heartbeat]
+        E5[ultron_serial_node -> /odom, /imu/data, /battery/state, /ultron/fault]
+        E6[ultron_data_logger -> /mnt/ssd/ultron/logs (Section 17)]
+        E7[static TFs: base->laser/kinect/imu]
+    end
+
+    subgraph L1["LAYER 1 — REAL-TIME (Arduino Mega -> Nano + MCP2515 CAN on Insight)"]
+        M1[ISR INT4 E-stop <5 ms]
+        M2[Quadrature encoders 825 t/rev]
+        M3[IBT-2 two-PWM 20 kHz]
+        M4[MPU6050 33 Hz]
+        M5[ACS712 + battery divider]
+        M6[Per-wheel velocity PID  P1]
+    end
+
+    E1 -->|/scan| N1
+    E1 -->|/scan| E4
+    E3 -->|/kinect/scan| E4
+    E4 -->|/safe_cmd_vel| E5
+    E5 -->|/odom /imu/data| N3
+    N1 -->|/cmd_vel| E4
+    E5 -->|serial v1| M2
+    E5 -->|serial v1| M4
+    E5 -->|serial v1| M5
+    E4 -->|/ultron/heartbeat| M1
+    E6 -->|JSONL| L3

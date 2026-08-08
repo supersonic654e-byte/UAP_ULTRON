@@ -1,0 +1,31 @@
+flowchart TB
+    subgraph REMOTE["REMOTE COMPUTE LAYER — Laptop / Ubuntu 22.04 (V0.3)"]
+        A1[Nav2 + SLAM + EKF container]
+        A2[RViz2 monitoring container]
+        A3[Pilot data sink: rosbag2 + feature_extract]
+        A4[Diagnostics /diagnostics]
+    end
+
+    subgraph EDGE["ONBOARD EDGE LAYER — Jetson Nano / Ubuntu 20.04 host"]
+        B1["Single Docker container (ros:humble-ros-base, host net)"]
+        B1 --- B2["RPLidar node → /scan"]
+        B1 --- B3["Kinect driver → /kinect/depth"]
+        B1 --- B4["depth_to_scan → /kinect/scan"]
+        B1 --- B5["Safety node → /safe_cmd_vel, /ultron/heartbeat"]
+        B1 --- B6["serial_node → /odom, /imu/data"]
+        B1 --- B7["data_logger_node → /mnt/ssd/ultron/logs (Section 17)"]
+    end
+
+    subgraph MCU["REAL-TIME CONTROL LAYER — Arduino Mega 2560 R3"]
+        C1[E-stop ISR < 5 ms]
+        C2[Watchdog 500 ms / HW WDT 8 s]
+        C3[Encoders D18/19, D52/51]
+        C4[Two-PWM IBT-2 drive 20 kHz]
+        C5[MPU6050 IMU + battery/current ADC]
+    end
+
+    REMOTE <-->|"CycloneDDS over Tailscale (UDP 7400-7500, domain 42)"| EDGE
+    EDGE <-->|"USB serial binary protocol v1 (CRC-8) /dev/ultron_arduino"| MCU
+
+    style A3 fill:#e8f0fe
+    style B7 fill:#e8f0fe
