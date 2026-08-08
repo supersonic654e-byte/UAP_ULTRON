@@ -10,6 +10,8 @@ Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what cha
 - Split the V0.1/V0.2 history into per-version folders.
 - Moved the InsightV1.0 spec and the Vitals/MedAssist roadmap into `versions/`.
 - Added Mermaid diagram sources under `docs/10_architecture/diagrams/`.
+- Added CI (docs-lint, firmware-build) and issue/PR templates.
+- Fixed relative links in copied docs; added the pitch deck artifact.
 
 ## 2026-08-08 — Hardware base + system architecture + sensor fusion (Sadnan Sajid355)
 
