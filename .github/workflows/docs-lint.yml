@@ -1,0 +1,47 @@
+name: docs-lint
+on:
+  push:
+    paths:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths:
+      - '**.md'
+      - 'docs/**'
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check broken relative links
+        run: |
+          set -euo pipefail
+          # collect .md files and verify local link targets exist
+          python3 - <<'PY'
+          import os, re, glob
+          root = os.getcwd()
+          bad = []
+          for f in glob.glob('**/*.md', recursive=True):
+              text = open(f, encoding='utf-8').read()
+              for m in re.finditer(r'\[[^\]]*\]\(([^)#]+)\)', text):
+                  target = m.group(1)
+                  if target.startswith(('http://', 'https://', '#')):
+                      continue
+                  p = os.path.normpath(os.path.join(os.path.dirname(f), target))
+                  if not os.path.exists(p):
+                      bad.append((f, target))
+          if bad:
+              for f, t in bad:
+                  print(f'BROKEN LINK {f} -> {t}')
+              raise SystemExit(1)
+          print('all relative links OK')
+          PY
+      - name: Check no forbidden version tokens in new content
+        run: |
+          set -euo pipefail
+          if grep -rniE 'Robot_ODA_v1\.0|robot_odaV4|Ultron_UV' docs versions README.md; then
+            echo "Found stale version tokens (only allowed in former-name mapping)."
+            exit 1
+          fi
+          echo "stale-token check OK"
