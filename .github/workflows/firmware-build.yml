@@ -14,8 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install arduino-cli
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
-            | sh -s -- --bindir "$HOME/bin"
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz \
+            -o /tmp/arduino-cli.tar.gz
+          tar -xzf /tmp/arduino-cli.tar.gz -C "$HOME/bin"
           echo "$HOME/bin" >> "$GITHUB_PATH"
       - name: Install AVR core
         run: |
