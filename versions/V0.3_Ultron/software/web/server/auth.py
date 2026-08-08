@@ -70,13 +70,17 @@ class Token:
     def verify(self, token: str):
         try:
             payload, sig = token.split(".")
+            # STRICT base64: any malformed/tampered segment raises -> rejected.
             expected = hmac.new(self.secret, payload.encode(),
                                 hashlib.sha256).digest()
-            if not hmac.compare_digest(
-                    base64.urlsafe_b64decode(sig), expected):
+            sig_bin = base64.b64decode(sig.encode("ascii"), altchars=b"-_",
+                                       validate=True)
+            if len(sig_bin) != len(expected) or not hmac.compare_digest(
+                    sig_bin, expected):
                 return None
-            role, identity, exp = base64.urlsafe_b64decode(
-                payload.encode()).decode().split(":")
+            payload_bin = base64.b64decode(payload.encode("ascii"),
+                                           altchars=b"-_", validate=True)
+            role, identity, exp = payload_bin.decode("utf-8").split(":")
             if int(exp) < time.time():
                 return None
             return {"role": role, "identity": identity}
