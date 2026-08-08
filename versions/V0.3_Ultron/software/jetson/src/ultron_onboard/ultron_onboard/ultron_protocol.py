@@ -16,6 +16,7 @@ PKT_ENCODER = 0x01      # -> out: int32 left, int32 right, uint32 ts_ms (12B)
 PKT_IMU = 0x02          # -> out: float ax,ay,az,gx,gy,gz (24B)
 PKT_BATTERY = 0x03      # -> out: float volts (4B)
 PKT_FAULT = 0x04        # -> out: uint8 fault_flags (1B)
+PKT_CURRENT = 0x06      # -> out: float left, float right (8B, Amps)
 PKT_HEARTBEAT = 0x05    # -> in:  uint8 seq; -> out: same
 
 PKT_VELOCITY = 0x01     # in: float vel_left, vel_right (8B, m/s)
@@ -111,6 +112,13 @@ def unpack_imu(payload):
     if len(payload) != 24:
         raise ValueError('imu payload must be 24 bytes')
     return struct.unpack('>ffffff', payload)
+
+
+def unpack_current(payload):
+    import struct
+    if len(payload) != 8:
+        raise ValueError('current payload must be 8 bytes')
+    return struct.unpack('>ff', payload)
 
 
 def twist_to_wheel_speeds(linear_x, angular_z):

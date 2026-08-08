@@ -7,9 +7,10 @@ without ROS (the server then runs in demo/sim mode).
 
 Topics (matching the V0.3 stack, Bible §9/§7.4):
   SUB /odom, /scan, /kinect/scan, /kinect/depth/image_raw, /map,
-      /battery/state, /ultron/fault, /ultron/heartbeat
+      /battery/state, /ultron/fault, /ultron/heartbeat, /ultron/current,
+      /safe_cmd_vel
   PUB /cmd_vel, /goal_pose, /ultron/clear_faults
-  ACTION /navigate_to_pose (nav2_msgs) — "go to <room>"
+  ACTION /navigate_to_pose (nav2_msgs) — "go to <waypoint>"
 """
 
 import math
@@ -89,7 +90,8 @@ class RosBridge:
 
         from sensor_msgs.msg import LaserScan, Image, BatteryState
         from nav_msgs.msg import Odometry
-        from std_msgs.msg import UInt8
+        from std_msgs.msg import UInt8, Float32
+        from geometry_msgs.msg import Twist
 
         self._node.create_subscription(Odometry, "/odom", self._odom_cb,
                                        reliable)
@@ -105,6 +107,12 @@ class RosBridge:
                                        self._fault_cb, reliable)
         self._node.create_subscription(UInt8, "/ultron/heartbeat",
                                        self._heartbeat_cb, reliable)
+        self._node.create_subscription(Float32, "/ultron/current_left",
+                                       self._current_left_cb, reliable)
+        self._node.create_subscription(Float32, "/ultron/current_right",
+                                       self._current_right_cb, reliable)
+        self._node.create_subscription(Twist, "/safe_cmd_vel",
+                                       self._safe_vel_cb, reliable)
 
         # /map is TransientLocal from map_server/slam_toolbox.
         try:
@@ -114,7 +122,7 @@ class RosBridge:
         except Exception:
             pass
 
-        from geometry_msgs.msg import Twist, PoseStamped
+        from geometry_msgs.msg import PoseStamped
         from std_msgs.msg import Empty
         self._cmd_pub = self._node.create_publisher(Twist, "/cmd_vel", reliable)
         self._goal_pub = self._node.create_publisher(PoseStamped, "/goal_pose",
@@ -157,10 +165,8 @@ class RosBridge:
                                                  msg.angle_increment)
             self.state.update_lidar(status["front_m"], status["left_m"],
                                     status["right_m"], status["front_m"])
-            self.state.lidar.update(status=status["state"],
-                                    level=status["level"],
-                                    avoidance=status["avoidance"],
-                                    clusters=clusters)
+            self.state.update_lidar_status(status["state"], status["level"],
+                                           status["avoidance"], clusters)
         except Exception:
             pass
         self.state.update_lidar_rate()
@@ -170,8 +176,9 @@ class RosBridge:
         status = detection.obstacle_status(ranges, msg.angle_min,
                                            msg.angle_increment)
         self.state.update_kinect(status["front_m"], status["front_m"])
-        self.state.kinect.update(clusters=detection.detect_clusters(
-            ranges, msg.angle_min, msg.angle_increment))
+        clusters = detection.detect_clusters(ranges, msg.angle_min,
+                                             msg.angle_increment)
+        self.state.update_kinect_clusters(clusters)
 
     def _depth_cb(self, msg):
         try:
@@ -201,6 +208,17 @@ class RosBridge:
 
     def _heartbeat_cb(self, msg):
         self.state.update_heartbeat(msg.data)
+
+    def _current_left_cb(self, msg):
+        right = self.state.current["right"]
+        self.state.update_current(msg.data, right)
+
+    def _current_right_cb(self, msg):
+        left = self.state.current["left"]
+        self.state.update_current(left, msg.data)
+
+    def _safe_vel_cb(self, msg):
+        self.state.update_safe_vel(msg.linear.x, msg.angular.z)
 
     # ---- streams (called by web handlers) ---------------------------------
     def depth_png(self, min_m=0.3, max_m=4.0):
@@ -306,7 +324,7 @@ class RosBridge:
         msg.pose.position.x = float(x)
         msg.pose.position.y = float(y)
         msg.pose.orientation.z = float(math.sin(theta / 2))
-        msg.pose.orientation.w = float(math.cos(theta / 2))
+        msg.pose.pose.orientation.w = float(math.cos(theta / 2))
         self._goal_pub.publish(msg)
         return {"ok": True, "via": "goal_pose"}
 

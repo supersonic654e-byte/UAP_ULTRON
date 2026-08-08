@@ -3332,8 +3332,13 @@ The user PIN is shown and changed **only by the admin** (Settings).
 ```
 User/Admin browser → HTTP/WebSocket → ultron_web (FastAPI, laptop)
    ├── reads:  /odom /scan /kinect/scan /kinect/depth/image_raw /map
-   │           /battery/state /ultron/fault /ultron/heartbeat  (CycloneDDS)
-   └── writes: /cmd_vel (teleop), /navigate_to_pose (rooms), /ultron/clear_faults
+   │           /battery/state /ultron/fault /ultron/heartbeat
+   │           /ultron/current_left /ultron/current_right
+   │           /safe_cmd_vel /ultron/detection/objects
+   │           /amcl_pose /ultron/waypoints/list  (CycloneDDS)
+   └── writes: /cmd_vel (teleop), /goal_pose /navigate_to_pose (waypoints),
+               /ultron/clear_faults, /ultron/estop,
+               /ultron/waypoints/add /ultron/waypoints/delete
 ```
 
 The robot is always connected to the admin dashboard while both are online
@@ -3354,18 +3359,37 @@ robot (§16).
 - `static/` — admin.html, user.html, style.css, app.js
 - `tests/` — 45 offline tests
 
-### 19.4 User panel features
+### 19.4 User panel features (Ultron_V0.3 r4 — redesigned)
 
-- Live camera feed (colorized depth) with continuous object/obstacle
-  detection: front/left/right ranges, STOP ≤ 0.35 m / SLOW ≤ 0.70 m,
-  obstacle clusters overlaid, avoidance status + clamp hint.
-- Live map (occupancy grid) with robot pose overlay.
-- Easy commands: "Go to Room 1/2/3", "Return to base" (targets editable by
-  admin), plus STOP + clear-faults.
-- Manual drive pad + arrow keys (teleop clamped to 0.45 m/s).
-- Live notifications, alerts, updates, and the user activity log.
-- All V0.3 live status: battery, faults, mode, heartbeat, speed, obstacle
-  distances (LiDAR + Kinect), navigation mode.
+- **PIN-protected entry** — 4-digit operator PIN (admin-changeable), with
+  animated orbit login screen. Session persists across browser reloads.
+- **Live camera feed** — MJPEG stream from `web_video_server` (topic
+  `/detection/image` by default, configurable). Colorized depth rendering
+  with obstacle detection overlay (red ≤0.35 m STOP / amber ≤0.70 m SLOW /
+  green clear). Continuous object detection tags from `/ultron/detection/objects`.
+- **Live map** — `ros2djs` viewer subscribing to `/map` (OccupancyGrid).
+  Robot pose overlay (AMCL `/amcl_pose` or EKF `/odom`). Click on map to
+  place named waypoints; waypoints persist to localStorage and sync to
+  `/ultron/waypoints` topic for robot-side persistence.
+- **Navigation** — Named waypoint buttons (auto-loaded from waypoint_manager).
+  "Go to \<waypoint\>" publishes to `/ultron/waypoints/navigate`; Nav2
+  action `/navigate_to_pose` used on laptop for goal execution.
+- **Manual teleop** — On-screen 5-button pad (▲/◄/■/►/▼) with speed slider
+  (0.05–0.45 m/s), plus full keyboard support (WASD / arrows, space = stop).
+  Server-side clamped to 0.45 m/s (teleop) and 0.35 m/s (goals).
+- **E-STOP** — Prominent pulsating red button in top bar; publishes
+  `/ultron/estop` (Bool) + zero `/cmd_vel` instantly.
+- **System status panel** — Real-time tiles: LiDAR health (OK/TIMEOUT),
+  Serial/ODOM health, Fault flags (hex + decoded names), Safe velocity
+  actually sent to motors (`/safe_cmd_vel`), Left/Right motor current
+  (ACS712 via `/ultron/current_left/right`).
+- **Notifications strip** — Color-coded live log (success/warning/error/info)
+  with timestamps, capped at 25 entries, auto-fade after 10s.
+- **Settings modal** — rosbridge URL, video stream base URL, video topic,
+  and operator PIN change (requires current PIN).
+- All V0.3 live status: battery (with warn/crit thresholds), faults,
+  mode, heartbeat sequence, pose, obstacle distances (LiDAR + Kinect),
+  navigation mode.
 
 ### 19.5 Admin dashboard features
 

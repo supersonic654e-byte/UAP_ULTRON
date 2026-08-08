@@ -85,4 +85,8 @@ def generate_launch_description():
              parameters=[params_file,
                          {'enabled': logging_enabled,
                           'mission_id': mission_id}]),
+
+        # Waypoint manager — persistent storage + ROS interface.
+        Node(package='ultron_onboard', executable='waypoint_manager',
+             name='ultron_waypoint_manager', output='screen'),
     ])

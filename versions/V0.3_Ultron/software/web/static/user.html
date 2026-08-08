@@ -1,270 +1,1011 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ultron V0.3 — User Control Panel</title>
-<link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>robot_oda — User Control Panel</title>
+<script src="https://static.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+<script src="https://static.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+<script src="https://static.robotwebtools.org/easeljs/current/easeljs.min.js"></script>
+<script src="https://static.robotwebtools.org/ros2djs/current/ros2d.min.js"></script>
+<style>
+:root{
+  --bg:#070d1a;--bg2:#0d1526;--bg3:#111e35;
+  --card:#152040;--card2:#1a2850;
+  --border:#1e3060;--border2:#243870;
+  --purp:#7c6af7;--purp2:#9d8fff;
+  --cyan:#22d3ee;--cyan2:#67e8f9;
+  --green:#10b981;--green2:#34d399;
+  --amber:#f59e0b;--red:#ef4444;--red2:#fca5a5;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#475569;
+  --shadow:0 4px 24px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+  min-height:100vh;overflow:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes orbitA{from{transform:rotate(0deg) translateX(60px) rotate(0deg)}to{transform:rotate(360deg) translateX(60px) rotate(-360deg)}}
+@keyframes orbitB{from{transform:rotate(120deg) translateX(60px) rotate(-120deg)}to{transform:rotate(480deg) translateX(60px) rotate(-480deg)}}
+@keyframes orbitC{from{transform:rotate(240deg) translateX(60px) rotate(-240deg)}to{transform:rotate(600deg) translateX(60px) rotate(-600deg)}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 6px rgba(239,68,68,.4)}50%{box-shadow:0 0 20px rgba(239,68,68,.9)}}
+
+/* ── PIN SCREEN ── */
+#pinScreen{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:1000;gap:24px;
+}
+.orbit-wrap{position:relative;width:160px;height:160px;flex-shrink:0}
+.orbit-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:44px;height:44px;background:linear-gradient(135deg,var(--purp),var(--cyan));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:20px;box-shadow:0 0 20px rgba(124,106,247,.5)}
+.orbit-ring{position:absolute;top:50%;left:50%;width:120px;height:120px;margin:-60px;
+  border:1px dashed rgba(124,106,247,.2);border-radius:50%}
+.orbit-dot{position:absolute;top:50%;left:50%;width:10px;height:10px;margin:-5px;border-radius:50%}
+.orbit-dot.a{animation:orbitA 3.5s linear infinite;background:var(--purp)}
+.orbit-dot.b{animation:orbitB 3.5s linear infinite;background:var(--cyan)}
+.orbit-dot.c{animation:orbitC 3.5s linear infinite;background:var(--green)}
+.pin-brand{font-size:22px;font-weight:800;letter-spacing:3px;color:var(--text)}
+.pin-sub{font-size:11px;color:var(--text3);letter-spacing:5px}
+.pin-box{background:var(--card);border:1px solid var(--border2);border-radius:16px;
+  padding:28px 32px;text-align:center;animation:fadeIn .4s ease;min-width:300px}
+.pin-box h3{font-size:12px;color:var(--text2);letter-spacing:2px;margin-bottom:20px}
+.pin-digits{display:flex;gap:10px;justify-content:center;margin-bottom:14px}
+.pd{width:52px;height:60px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:28px;text-align:center;
+  outline:none;transition:border-color .2s}
+.pd:focus{border-color:var(--purp)}
+.pin-err{color:var(--red);font-size:12px;margin-bottom:10px;display:none}
+.btn-enter{width:100%;padding:12px;background:var(--purp);border:none;
+  border-radius:8px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+.btn-enter:hover{background:var(--purp2)}
+
+/* ── MAIN LAYOUT ── */
+#app{display:none;height:100vh;flex-direction:column}
+.topbar{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  height:46px;display:flex;align-items:center;padding:0 16px;gap:12px;
+  flex-shrink:0;position:relative;z-index:50;
+}
+.tb-brand{font-size:12px;font-weight:800;letter-spacing:3px;color:var(--purp);flex-shrink:0}
+.tb-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.conn-badge{display:flex;align-items:center;gap:5px;font-size:11px}
+.conn-dot{width:7px;height:7px;border-radius:50%;animation:pulse 2s infinite}
+.batt-badge{font-size:11px;color:var(--text2);padding:3px 8px;
+  background:var(--bg3);border-radius:6px;border:1px solid var(--border)}
+.batt-badge.warn{border-color:var(--amber);color:var(--amber)}
+.batt-badge.crit{border-color:var(--red);color:var(--red)}
+.fault-badge{font-size:10px;background:rgba(239,68,68,.15);color:var(--red);
+  padding:3px 8px;border-radius:6px;border:1px solid rgba(239,68,68,.3);display:none}
+.fault-badge.show{display:block}
+.tb-spacer{flex:1}
+.estop-btn{
+  background:var(--red);border:none;border-radius:8px;color:#fff;
+  padding:6px 16px;font-size:12px;font-weight:700;cursor:pointer;
+  animation:glow 1.5s ease infinite;letter-spacing:1px;
+  transition:.1s;flex-shrink:0;
+}
+.estop-btn:active{transform:scale(.97)}
+.btn-icon{background:none;border:1px solid var(--border);color:var(--text2);
+  padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;transition:.2s;flex-shrink:0}
+.btn-icon:hover{border-color:var(--border2);color:var(--text)}
+
+/* ── GRID ── */
+.grid{display:grid;grid-template-columns:1fr 380px 270px;
+  grid-template-rows:1fr auto;gap:8px;padding:8px;
+  height:calc(100vh - 46px);overflow:hidden}
+
+/* ── PANELS ── */
+.panel{background:var(--card);border:1px solid var(--border);
+  border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.phead{padding:8px 12px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.ptitle{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--text2)}
+.pbody{flex:1;overflow:hidden;position:relative}
+
+/* ── VIDEO PANEL ── */
+#videoPanel{grid-column:1;grid-row:1}
+#videoFeed{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+.det-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,.8));
+  padding:8px 12px;display:flex;flex-wrap:wrap;gap:4px;
+}
+.det-tag{background:rgba(16,185,129,.2);border:1px solid rgba(16,185,129,.4);
+  color:var(--green2);font-size:10px;padding:2px 7px;border-radius:4px}
+.no-video{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;color:var(--text3);gap:8px}
+.no-video-icon{font-size:32px}
+
+/* ── MAP PANEL ── */
+#mapPanel{grid-column:2;grid-row:1;display:flex;flex-direction:column}
+#mapCanvas{flex:1;overflow:hidden;position:relative;background:#0a1020;cursor:crosshair}
+#map-container{width:100%;height:100%}
+.map-overlay-info{
+  position:absolute;bottom:6px;left:6px;font-size:9px;
+  color:var(--text3);background:rgba(0,0,0,.6);padding:3px 6px;border-radius:4px;
+  pointer-events:none;
+}
+.map-no-data{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;color:var(--text3);gap:6px;font-size:11px}
+.waypoint-controls{padding:6px 10px;border-top:1px solid var(--border);
+  display:flex;gap:6px;flex-shrink:0;align-items:center}
+.wp-count{font-size:10px;color:var(--text3);margin-left:auto}
+
+/* ── CONTROL PANEL ── */
+#ctrlPanel{grid-column:3;grid-row:1;display:flex;flex-direction:column}
+.ctrl-section{padding:8px 10px;border-bottom:1px solid var(--border)}
+.ctrl-label{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--text3);margin-bottom:6px}
+.wp-buttons{display:flex;flex-direction:column;gap:4px;max-height:130px;overflow-y:auto}
+.wp-btn{width:100%;background:var(--bg2);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:11px;padding:7px 10px;
+  cursor:pointer;text-align:left;transition:.15s;display:flex;align-items:center;gap:6px}
+.wp-btn:hover{border-color:var(--purp);background:rgba(124,106,247,.1)}
+.wp-btn-del{background:none;border:none;color:var(--text3);cursor:pointer;
+  margin-left:auto;font-size:14px;padding:0 2px;line-height:1}
+.wp-btn-del:hover{color:var(--red)}
+.no-wp{font-size:10px;color:var(--text3);text-align:center;padding:12px}
+.teleop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;
+  width:120px;margin:0 auto}
+.tel-btn{background:var(--bg3);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:14px;padding:8px;
+  cursor:pointer;text-align:center;user-select:none;transition:.1s}
+.tel-btn:active,.tel-btn.active{background:rgba(124,106,247,.25);border-color:var(--purp)}
+.tel-btn.stop{grid-column:2;background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.3);color:var(--red)}
+.speed-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.speed-row label{font-size:10px;color:var(--text3);flex-shrink:0}
+.speed-row input{flex:1;accent-color:var(--purp)}
+#speedVal{font-size:10px;color:var(--cyan);width:50px;text-align:right;flex-shrink:0}
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.stat-item{background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;padding:5px 8px}
+.stat-key{font-size:9px;color:var(--text3);margin-bottom:2px}
+.stat-val{font-size:11px;font-weight:600}
+
+/* ── NOTIFS STRIP ── */
+#notifStrip{grid-column:1/-1;grid-row:2;
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  padding:4px 12px;max-height:60px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.notif{font-size:10px;padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.04);
+  display:flex;gap:8px;align-items:baseline}
+.notif-time{color:var(--text3);flex-shrink:0;font-size:9px}
+.notif-msg{flex:1}
+.notif.success .notif-msg{color:var(--green)}
+.notif.error .notif-msg{color:var(--red)}
+.notif.warning .notif-msg{color:var(--amber)}
+.notif.info .notif-msg{color:var(--cyan)}
+
+/* ── SETTINGS MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);
+  backdrop-filter:blur(4px);z-index:200;display:none;
+  align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--card2);border:1px solid var(--border2);
+  border-radius:16px;padding:24px;width:420px;
+  animation:fadeIn .25s ease;position:relative}
+.modal-title{font-size:13px;font-weight:700;letter-spacing:2px;color:var(--text);
+  margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.mc{position:absolute;top:14px;right:14px;background:none;border:none;
+  color:var(--text3);cursor:pointer;font-size:20px;line-height:1}
+.mc:hover{color:var(--text)}
+.fg{margin-bottom:12px}
+.fl{font-size:11px;color:var(--text2);margin-bottom:5px;display:block}
+.fi{width:100%;background:var(--bg2);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);padding:8px 10px;font-size:12px;
+  outline:none;transition:.2s;font-family:inherit}
+.fi:focus{border-color:var(--purp)}
+.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;
+  padding-top:12px;border-top:1px solid var(--border)}
+.btn-p{background:var(--purp);border:none;border-radius:7px;color:#fff;
+  padding:9px 18px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+.btn-p:hover{background:var(--purp2)}
+.btn-s{background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  color:var(--text2);padding:9px 18px;font-size:12px;cursor:pointer;transition:.2s}
+.btn-s:hover{background:rgba(255,255,255,.06)}
+.pin-section{background:var(--bg3);border-radius:8px;padding:12px;margin-top:8px}
+.pin-section h4{font-size:10px;color:var(--text3);letter-spacing:1.5px;margin-bottom:10px}
+.pin-row{display:flex;gap:8px}
+.btn-sm-p{background:var(--purp);border:none;border-radius:6px;color:#fff;
+  padding:8px 12px;font-size:11px;cursor:pointer;white-space:nowrap}
+.section-divider{height:1px;background:var(--border);margin:10px 0}
+
+/* ── DECORATIVE TECH TAGS ── */
+.tech-strip{display:flex;gap:4px;flex-wrap:wrap;padding:4px 0}
+.ttag{font-size:8px;background:rgba(255,255,255,.03);border:1px solid var(--border);
+  border-radius:3px;padding:1px 5px;color:var(--text3);letter-spacing:.5px}
+</style>
 </head>
 <body>
 
-<!-- PIN gate -->
-<div id="login" class="login-wrap">
-  <div class="login-card">
-    <div class="logo">U</div>
-    <h2 style="margin:0 0 4px">Ultron V0.3</h2>
-    <p class="muted" style="margin:0 0 6px">Remote robot control panel</p>
-    <div class="pin-dots" id="pin-dots">
-      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+<!-- ═══ PIN SCREEN ══════════════════════════════════════════════════════════ -->
+<div id="pinScreen">
+  <div class="orbit-wrap">
+    <div class="orbit-ring"></div>
+    <div class="orbit-center">&#129302;</div>
+    <div class="orbit-dot a"></div>
+    <div class="orbit-dot b"></div>
+    <div class="orbit-dot c"></div>
+  </div>
+  <div style="text-align:center">
+    <div class="pin-brand">robot_oda</div>
+    <div class="pin-sub">USER CONTROL · TEAM SUPERSONIC</div>
+  </div>
+  <div class="pin-box">
+    <h3>OPERATOR PIN REQUIRED</h3>
+    <div class="pin-digits">
+      <input class="pd" id="pd1" maxlength="1" type="password" oninput="pnext(this,'pd2')" onkeydown="if(event.key==='Enter')doLogin()">
+      <input class="pd" id="pd2" maxlength="1" type="password" oninput="pnext(this,'pd3')" onkeydown="if(event.key==='Enter')doLogin()">
+      <input class="pd" id="pd3" maxlength="1" type="password" oninput="pnext(this,'pd4')" onkeydown="if(event.key==='Enter')doLogin()">
+      <input class="pd" id="pd4" maxlength="1" type="password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div class="keypad" id="keypad"></div>
-    <p class="muted" id="pin-err" style="color:var(--red-600);margin-top:12px"></p>
+    <div class="pin-err" id="pinErr">Incorrect PIN. Try again.</div>
+    <button class="btn-enter" onclick="doLogin()">Enter Control Room</button>
+  </div>
+  <div class="tech-strip" style="justify-content:center;max-width:400px">
+    <span class="ttag">ROS 2 Humble</span><span class="ttag">Jetson Nano</span>
+    <span class="ttag">Arduino Mega</span><span class="ttag">CycloneDDS</span>
+    <span class="ttag">Nav2</span><span class="ttag">SLAM Toolbox</span>
+    <span class="ttag">YOLOv8n</span><span class="ttag">Tailscale</span>
+    <span class="ttag">IBT-2 BTS7960</span><span class="ttag">RPLiDAR A1</span>
+    <span class="ttag">Kinect 1414</span><span class="ttag">MPU6050</span>
   </div>
 </div>
 
-<!-- Panel -->
-<div id="panel" class="hidden">
-  <header class="topbar">
-    <div class="brand-heading"><h1>Ultron V0.3 — Control Panel</h1><p>Remote operation from anywhere with the web link + your PIN</p></div>
-    <div class="spacer"></div>
-    <span class="role-pill" id="conn-pill">connecting…</span>
-    <button class="btn" onclick="logout()">Sign out</button>
-  </header>
+<!-- ═══ MAIN APP ═══════════════════════════════════════════════════════════ -->
+<div id="app">
 
-  <main class="shell">
-    <div class="status-strip" id="status-strip">
-      <span class="pill neutral">waiting for data…</span>
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <span class="tb-brand">SUPERSONIC // ODA</span>
+    <div class="tb-sep"></div>
+    <div class="conn-badge">
+      <span class="conn-dot" id="connDot" style="background:var(--text3)"></span>
+      <span id="connLabel" style="font-size:11px;color:var(--text3)">Connecting...</span>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="batt-badge" id="battBadge">Battery: --V</div>
+    <div class="fault-badge" id="faultBadge">FAULT: 0x00</div>
+    <div class="tb-spacer"></div>
+    <div style="font-size:10px;color:var(--text3)" id="rosPoseLabel">Pose: --</div>
+    <div class="tb-sep"></div>
+    <button class="btn-icon" onclick="openSettings()">⚙ Settings</button>
+    <button class="btn-icon" onclick="doLogout()">Logout</button>
+    <button class="estop-btn" onmousedown="emergencyStop()" ontouchstart="emergencyStop()">
+      ⚠ E-STOP
+    </button>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+
+    <!-- VIDEO PANEL -->
+    <div class="panel" id="videoPanel">
+      <div class="phead">
+        <span class="ptitle">LIVE CAMERA + OBJECT DETECTION</span>
+        <span id="fpsLabel" style="font-size:10px;color:var(--cyan)">-- fps</span>
+      </div>
+      <div class="pbody">
+        <div class="no-video" id="noVideo">
+          <div class="no-video-icon">📷</div>
+          <div style="font-size:12px">Camera feed not connected</div>
+          <div style="font-size:10px;color:var(--text3)">Check web_video_server MJPEG stream</div>
+        </div>
+        <img id="videoFeed" src="" alt="" style="display:none;width:100%;height:100%;object-fit:contain"
+          onload="onVideoLoad()" onerror="onVideoError()">
+        <div class="det-overlay" id="detOverlay"></div>
+      </div>
     </div>
 
-    <div class="grid grid-2">
-      <div class="card">
-        <h3>Live camera — obstacle &amp; object detection</h3>
-        <div class="stream-box">
-          <img id="cam" alt="live depth camera">
-          <div class="stream-hud">
-            <span class="pill neutral" id="cam-state">offline</span>
-            <span class="pill neutral" id="cam-front">front —</span>
+    <!-- MAP PANEL -->
+    <div class="panel" id="mapPanel">
+      <div class="phead">
+        <span class="ptitle">LIVE MAP</span>
+        <span id="mapStatus" style="font-size:10px;color:var(--text3)">Waiting for /map...</span>
+      </div>
+      <div class="pbody" id="mapCanvas">
+        <div class="map-no-data" id="mapNoData">
+          <div style="font-size:28px">🗺</div>
+          <div>No map data</div>
+          <div style="font-size:10px;color:var(--text3)">Start SLAM or load saved map</div>
+        </div>
+        <div id="map-container" style="width:100%;height:100%;display:none"></div>
+        <div class="map-overlay-info" id="mapInfo">Click map to add waypoint</div>
+      </div>
+      <div class="waypoint-controls">
+        <button class="btn-icon" id="addWpBtn" onclick="toggleAddWaypoint()" style="font-size:10px">
+          + Add Waypoint
+        </button>
+        <button class="btn-icon" onclick="refreshWaypoints()" style="font-size:10px">↻ Refresh</button>
+        <span class="wp-count" id="wpCount">0 waypoints</span>
+      </div>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="panel" id="ctrlPanel">
+      <!-- Navigation -->
+      <div class="ctrl-section" style="flex:1;overflow-y:auto">
+        <div class="ctrl-label">NAVIGATION — WAYPOINTS</div>
+        <div class="wp-buttons" id="wpButtons">
+          <div class="no-wp">No waypoints yet.<br>Add one by clicking the map.</div>
+        </div>
+      </div>
+
+      <!-- Teleop -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">MANUAL CONTROL</div>
+        <div class="teleop-grid">
+          <div></div>
+          <div class="tel-btn" id="telFwd"
+            onmousedown="telStart(0.3,0)" onmouseup="telStop()"
+            ontouchstart="telStart(0.3,0)" ontouchend="telStop()">▲</div>
+          <div></div>
+          <div class="tel-btn" id="telLeft"
+            onmousedown="telStart(0,0.5)" onmouseup="telStop()"
+            ontouchstart="telStart(0,0.5)" ontouchend="telStop()">◄</div>
+          <div class="tel-btn stop" onclick="telStop()">■</div>
+          <div class="tel-btn" id="telRight"
+            onmousedown="telStart(0,-0.5)" onmouseup="telStop()"
+            ontouchstart="telStart(0,-0.5)" ontouchend="telStop()">►</div>
+          <div></div>
+          <div class="tel-btn" id="telBack"
+            onmousedown="telStart(-0.3,0)" onmouseup="telStop()"
+            ontouchstart="telStart(-0.3,0)" ontouchend="telStop()">▼</div>
+          <div></div>
+        </div>
+        <div class="speed-row" style="margin-top:8px">
+          <label>Speed</label>
+          <input type="range" id="speedSlider" min="0.05" max="0.45" step="0.05" value="0.3"
+            oninput="updateSpeed()">
+          <span id="speedVal">0.30 m/s</span>
+        </div>
+      </div>
+
+      <!-- System Status -->
+      <div class="ctrl-section">
+        <div class="ctrl-label">SYSTEM STATUS</div>
+        <div class="status-grid">
+          <div class="stat-item">
+            <div class="stat-key">LIDAR</div>
+            <div class="stat-val" id="statLidar" style="color:var(--text3)">--</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-key">SERIAL</div>
+            <div class="stat-val" id="statSerial" style="color:var(--text3)">--</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-key">FAULT FLAGS</div>
+            <div class="stat-val" id="statFault" style="color:var(--text3)">0x00</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-key">SAFE VEL</div>
+            <div class="stat-val" id="statSafeVel" style="color:var(--text3)">--</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-key">CURRENT L</div>
+            <div class="stat-val" id="statCurrL" style="color:var(--text3)">--</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-key">CURRENT R</div>
+            <div class="stat-val" id="statCurrR" style="color:var(--text3)">--</div>
           </div>
         </div>
-        <div class="legend">
-          <span><i style="background:#e6474f"></i>≤0.35 m STOP</span>
-          <span><i style="background:#d88c06"></i>≤0.70 m SLOW</span>
-          <span><i style="background:#28c876"></i>clear</span>
-        </div>
       </div>
+    </div><!-- /ctrlPanel -->
 
-      <div class="card">
-        <h3>Live map</h3>
-        <div class="live-map"><img id="map" alt="map"><span id="map-off" class="muted">no map yet</span></div>
-        <p class="muted" style="font-size:12px">Robot pose is shown when a SLAM/AMCL map is published.</p>
-      </div>
+    <!-- NOTIFICATION STRIP -->
+    <div id="notifStrip"></div>
+
+  </div><!-- /grid -->
+
+</div><!-- /app -->
+
+<!-- ═══ SETTINGS MODAL ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="settingsOverlay">
+<div class="modal">
+  <button class="mc" onclick="closeSettings()">&times;</button>
+  <div class="modal-title">⚙ Settings</div>
+
+  <div class="fg">
+    <label class="fl">rosbridge WebSocket URL</label>
+    <input class="fi" id="cfgRosUrl" placeholder="ws://laptop-ip:9090">
+  </div>
+  <div class="fg">
+    <label class="fl">Video stream base URL</label>
+    <input class="fi" id="cfgVidUrl" placeholder="http://laptop-ip:8080/video">
+  </div>
+  <div class="fg">
+    <label class="fl">Video topic (default: /detection/image)</label>
+    <input class="fi" id="cfgVidTopic" placeholder="/detection/image">
+  </div>
+
+  <div class="section-divider"></div>
+  <div class="pin-section">
+    <h4>CHANGE OPERATOR PIN</h4>
+    <div class="pin-row">
+      <input class="fi" id="cfgOldPin" type="password" placeholder="Current PIN" style="width:100px">
+      <input class="fi" id="cfgNewPin" type="password" placeholder="New PIN (min 4 chars)">
+      <button class="btn-sm-p" onclick="changePin()">Change</button>
     </div>
+  </div>
 
-    <div class="grid grid-4" id="stat-cards" style="margin-top:16px"></div>
-
-    <div class="grid grid-2" style="margin-top:16px">
-      <div class="card">
-        <h3>Go to a target</h3>
-        <div class="target-grid" id="targets"></div>
-        <div style="display:flex;gap:10px;margin-top:14px">
-          <button class="btn danger big" style="flex:1" onclick="sendStop()">⛔ STOP</button>
-          <button class="btn" style="flex:1" onclick="clearFaults()">Clear faults</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Manual drive</h3>
-        <div class="pad">
-          <span></span><button onclick="sendTwist(0.35,0)">▲</button><span></span>
-          <button onclick="sendTwist(0,0.6)">◀</button>
-          <button class="pad-center" onclick="sendStop()">STOP</button>
-          <button onclick="sendTwist(0,-0.6)">▶</button>
-          <span></span><button onclick="sendTwist(-0.35,0)">▼</button><span></span>
-        </div>
-        <p class="muted" style="text-align:center;margin-top:10px">Arrow keys also work. Teleop is clamped to 0.45 m/s; Nav2 goals to 0.35 m/s.</p>
-      </div>
-    </div>
-
-    <div class="grid grid-2" style="margin-top:16px">
-      <div class="card"><h3>Live notifications &amp; alerts</h3><div id="alerts"><div class="empty">none</div></div></div>
-      <div class="card"><h3>My activity</h3><div id="activity"><div class="empty">no activity yet</div></div></div>
-    </div>
-  </main>
+  <div class="mf">
+    <button class="btn-s" onclick="closeSettings()">Cancel</button>
+    <button class="btn-p" onclick="saveSettings()">Save & Reconnect</button>
+  </div>
+</div>
 </div>
 
-<script src="/static/app.js"></script>
+<!-- ═══ WAYPOINT NAME MODAL ═══════════════════════════════════════════════════ -->
+<div class="overlay" id="wpOverlay">
+<div class="modal" style="max-width:340px">
+  <button class="mc" onclick="cancelWp()">&times;</button>
+  <div class="modal-title">📍 Name This Waypoint</div>
+  <div class="fg">
+    <label class="fl">Waypoint Name</label>
+    <input class="fi" id="wpName" placeholder="e.g. Room1, Lab, Office"
+      onkeydown="if(event.key==='Enter')confirmWp()">
+  </div>
+  <div id="wpCoordInfo" style="font-size:10px;color:var(--text3);margin-bottom:12px"></div>
+  <div class="mf">
+    <button class="btn-s" onclick="cancelWp()">Cancel</button>
+    <button class="btn-p" onclick="confirmWp()">Add Waypoint ✓</button>
+  </div>
+</div>
+</div>
+
+<!-- ═══ JAVASCRIPT ═══════════════════════════════════════════════════════════ -->
 <script>
-"use strict";
-let pin = "";
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const CFG_KEYS = {
+  PIN:       'oda_pin',
+  ROS_URL:   'oda_ros_url',
+  VID_URL:   'oda_vid_url',
+  VID_TOPIC: 'oda_vid_topic',
+  WAYPOINTS: 'oda_waypoints',
+};
+const DEFAULT_PIN       = '1234';
+const DEFAULT_ROS_URL   = 'ws://localhost:9090';
+const DEFAULT_VID_URL   = 'http://localhost:8080/video';
+const DEFAULT_VID_TOPIC = '/detection/image';
 
-function init() {
-  buildKeypad();
-  const demo = demoParam();
-  if (API.role() === "user") { showPanel(); }
-  else if (demo) { demoSession("user").then(showPanel).catch(() => {}); }
-}
+function cfg(key, fallback) { return localStorage.getItem(key) || fallback; }
+function cfgSet(key, val)   { localStorage.setItem(key, val); }
 
-function buildKeypad() {
-  const keys = ["1","2","3","4","5","6","7","8","9","⌫","0","✓"];
-  $("#keypad").innerHTML = keys.map(k => "<button data-k='" + k + "'>" + k + "</button>").join("");
-  $$("#keypad button").forEach(b => b.onclick = () => press(b.dataset.k));
-}
+let PIN       = cfg(CFG_KEYS.PIN,       DEFAULT_PIN);
+let rosUrl    = cfg(CFG_KEYS.ROS_URL,   DEFAULT_ROS_URL);
+let vidUrl    = cfg(CFG_KEYS.VID_URL,   DEFAULT_VID_URL);
+let vidTopic  = cfg(CFG_KEYS.VID_TOPIC, DEFAULT_VID_TOPIC);
 
-function press(k) {
-  $("#pin-err").textContent = "";
-  if (k === "⌫") { pin = pin.slice(0, -1); }
-  else if (k === "✓") { doLogin(); }
-  else if (pin.length < 4) { pin += k; }
-  renderDots();
-}
+// ── STATE ──────────────────────────────────────────────────────────────────
+let ros = null, loggedIn = false;
+let cmdVelPub = null, estopPub = null, wpAddPub = null, wpDelPub = null, wpNavPub = null;
+let mapViewer = null, robotMarker = null;
+let waypoints  = {};
+let addingWp   = false, pendingWpPos = null;
+let currentSpeed = 0.3;
+let lastScanTime = 0, scanTimeout = null;
+let videoLoadTimer = null;
 
-function renderDots() {
-  $$("#pin-dots .dot").forEach((d, i) => d.classList.toggle("filled", i < pin.length));
-}
+// ── PIN LOGIN ──────────────────────────────────────────────────────────────
+function pnext(el, nid) { if(el.value.length===1) document.getElementById(nid).focus(); }
 
-async function doLogin() {
-  if (pin.length !== 4) { $("#pin-err").textContent = "Enter 4 digits"; return; }
-  try {
-    const r = await API.post("/api/login/user", { pin });
-    API.set(r.role, r.token);
-    showPanel();
-  } catch (e) { $("#pin-err").textContent = "Wrong PIN"; pin = ""; renderDots(); }
-}
-
-function logout() { API.clear(); location.reload(); }
-
-function showPanel() {
-  $("#login").classList.add("hidden");
-  $("#panel").classList.remove("hidden");
-  startLive();
-}
-
-/* ---- live streams -------------------------------------------------------- */
-function startLive() {
-  const cam = $("#cam");
-  startImageWS("/ws/camera", cam, off => {
-    $("#cam-state").textContent = off ? "offline" : "live";
-  });
-  startImageWS("/ws/map", $("#map"), off => {
-    $("#map-off").classList.toggle("hidden", !off);
-  });
-  startStatusWS(render, 200);
-  startAlertsWS(onAlert);
-  loadTargets();
-}
-
-function render(snap) {
-  const conn = snap.connected ? "robot ONLINE" : "robot OFFLINE";
-  $("#conn-pill").textContent = conn;
-  $("#conn-pill").className = "role-pill " + (snap.connected ? "pill ok" : "pill danger");
-
-  const ob = snap.lidar || {};
-  const front = ob.front;
-  const pill = front === null || front === undefined
-    ? '<span class="pill neutral">no obstacle data</span>'
-    : (front <= 0.35 ? '<span class="pill danger"><span class="dot"></span>STOP ' + front.toFixed(2) + ' m</span>'
-       : (front <= 0.70 ? '<span class="pill warn"><span class="dot"></span>SLOW ' + front.toFixed(2) + ' m</span>'
-          : '<span class="pill ok"><span class="dot"></span>CLEAR ' + front.toFixed(2) + ' m</span>'));
-  $("#status-strip").innerHTML =
-    '<span class="pill ' + (snap.connected ? "ok" : "danger") + '"><span class="dot"></span>' + conn + '</span>' +
-    pill +
-    '<span class="pill neutral">mode: ' + esc(snap.mode || "idle") + '</span>' +
-    '<span class="pill ' + (snap.faults.flags ? "danger" : "ok") + '">' +
-    (snap.faults.names.length ? esc(snap.faults.names.join(" · ")) : "no faults") + '</span>';
-
-  $("#cam-state").textContent = snap.connected ? "live" : "offline";
-  $("#cam-front").textContent = "front " + (front === null || front === undefined ? "—" : front.toFixed(2) + " m");
-
-  const k = snap.kinect || {};
-  const faults = faultNames(snap.faults && snap.faults.flags);
-  $("#stat-cards").innerHTML =
-    '<div class="card"><div class="stat"><span class="label">Battery</span><span class="value" style="font-size:20px">' + fmtVoltage(snap.battery && snap.battery.voltage) + '</span></div></div>' +
-    '<div class="card"><div class="stat"><span class="label">Speed</span><span class="value" style="font-size:20px">' + fmtNum(snap.odom && snap.odom.vx, 2) + ' m/s</span></div></div>' +
-    '<div class="card"><div class="stat"><span class="label">Obstacle front (LiDAR)</span><span class="value" style="font-size:20px">' + fmtNum(front, 2) + ' m</span></div></div>' +
-    '<div class="card"><div class="stat"><span class="label">Obstacle front (Kinect)</span><span class="value" style="font-size:20px">' + fmtNum(k.front, 2) + ' m</span></div></div>' +
-    '<div class="card"><div class="stat"><span class="label">Faults</span><span class="value" style="font-size:16px">' + (faults.length ? esc(faults.join(" · ")) : "none") + '</span></div></div>' +
-    '<div class="card"><div class="stat"><span class="label">Mode</span><span class="value" style="font-size:20px;text-transform:capitalize">' + esc(snap.mode || "idle") + '</span></div></div>';
-
-  renderActivity(snap);
-}
-
-/* ---- activity / alerts --------------------------------------------------- */
-let recentActivity = [];
-function renderActivity(snap) {
-  if (snap.last_cmd && snap.last_cmd.ts) {
-    const key = Math.round(snap.last_cmd.ts);
-    if (!recentActivity.length || recentActivity[recentActivity.length - 1].k !== key) {
-      recentActivity.push({
-        k: key,
-        text: "command vx=" + snap.last_cmd.vx + " wz=" + snap.last_cmd.wz,
-        time: snap.last_cmd.ts
-      });
-      if (recentActivity.length > 12) recentActivity.shift();
-      $("#activity").innerHTML = recentActivity.slice().reverse().map(a =>
-        '<div class="alert-row info"><div class="ico">»</div><div><div class="t">' + esc(a.text) + '</div><div class="m">' + fmtTime(a.time) + '</div></div></div>'
-      ).join("");
-    }
+function doLogin() {
+  const pin = ['pd1','pd2','pd3','pd4'].map(id=>document.getElementById(id).value).join('');
+  if (pin === PIN) {
+    loggedIn = true;
+    document.getElementById('pinScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    initApp();
+  } else {
+    document.getElementById('pinErr').style.display = 'block';
+    ['pd1','pd2','pd3','pd4'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('pd1').focus();
+    setTimeout(()=>document.getElementById('pinErr').style.display='none', 2000);
   }
 }
 
-function onAlert(n) {
-  toast(n.text, n.level === "warning" ? "danger" : n.level);
-  const box = $("#alerts");
-  const row = '<div class="alert-row ' + esc(n.level) + '"><div class="ico">' + (n.level === "warning" ? "!" : n.level === "danger" ? "✕" : "i") + '</div><div><div class="t">' + esc(n.text) + '</div><div class="m">' + fmtTime(n.ts) + '</div></div></div>';
-  const cur = box.innerHTML === '<div class="empty">none</div>' ? "" : box.innerHTML;
-  box.innerHTML = row + cur;
+function doLogout() {
+  loggedIn = false;
+  if(ros) { try { ros.close(); } catch(e){} }
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('pinScreen').style.display = 'flex';
+  ['pd1','pd2','pd3','pd4'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pd1').focus();
+  addNotif('Logged out', 'info');
 }
 
-/* ---- commands ------------------------------------------------------------ */
-async function loadTargets() {
-  const defaults = {
-    room1: { label: "Room 1", x: 2, y: 0, theta: 0 },
-    room2: { label: "Room 2", x: 0, y: 2, theta: 1.5708 },
-    room3: { label: "Room 3", x: -2, y: 0, theta: 3.1416 },
-    base:  { label: "Return to base", x: 0, y: 0, theta: 0 }
-  };
-  let rooms = defaults;
+// ── APP INIT ───────────────────────────────────────────────────────────────
+function initApp() {
+  loadWaypointsFromStorage();
+  renderWpButtons();
+  connectRos();
+  setupKeyboard();
+  document.getElementById('speedSlider').value = currentSpeed;
+  document.getElementById('speedVal').textContent = currentSpeed.toFixed(2) + ' m/s';
+}
+
+// ── ROS CONNECTION ─────────────────────────────────────────────────────────
+function connectRos() {
+  if(ros) { try { ros.close(); } catch(e){} }
+  setConnStatus('connecting');
+  addNotif('Connecting to rosbridge: ' + rosUrl, 'info');
+
   try {
-    const d = await API.get("/api/rooms");
-    if (d && d.rooms && Object.keys(d.rooms).length) rooms = d.rooms;
-  } catch (_) {}
-  $("#targets").innerHTML = Object.keys(rooms).map(k => {
-    const r = rooms[k];
-    return '<button class="target" data-room="' + esc(k) + '"><strong>' + esc(r.label || k) + '</strong><span>(' + r.x + ', ' + r.y + ' m)</span></button>';
-  }).join("");
-  $$("#targets .target").forEach(b => b.onclick = () => goTarget(b.dataset.room));
+    ros = new ROSLIB.Ros({ url: rosUrl });
+  } catch(e) {
+    setConnStatus('error');
+    addNotif('Failed to create ROS connection: ' + e.message, 'error');
+    setTimeout(connectRos, 8000);
+    return;
+  }
+
+  ros.on('connection', () => {
+    setConnStatus('connected');
+    addNotif('Connected to robot ROS network', 'success');
+    setupPublishers();
+    setupSubscriptions();
+    initMap();
+    startVideo();
+    loadWaypointsFromROS();
+  });
+  ros.on('error', err => {
+    setConnStatus('error');
+    addNotif('ROS connection error', 'error');
+  });
+  ros.on('close', () => {
+    setConnStatus('disconnected');
+    addNotif('Disconnected from robot. Retrying in 6s...', 'warning');
+    setTimeout(connectRos, 6000);
+  });
 }
 
-async function goTarget(roomId) {
-  try { const r = await API.post("/api/cmd/goal", { room_id: roomId }); toast("Navigating to " + roomId, "ok"); }
-  catch (e) { toast(e.message, "danger"); }
+function setConnStatus(s) {
+  const dot = document.getElementById('connDot');
+  const lbl = document.getElementById('connLabel');
+  const colors = { connected:'var(--green)', disconnected:'var(--text3)',
+                   connecting:'var(--amber)', error:'var(--red)' };
+  const labels = { connected:'Connected', disconnected:'Disconnected',
+                   connecting:'Connecting...', error:'Connection Error' };
+  dot.style.background = colors[s] || 'var(--text3)';
+  dot.style.animation  = s==='connecting' ? 'pulse .8s infinite' : 'none';
+  lbl.textContent  = labels[s] || s;
+  lbl.style.color  = colors[s] || 'var(--text3)';
 }
 
-async function sendTwist(vx, wz) {
-  try { await API.post("/api/cmd/twist", { vx, wz }); }
-  catch (e) { toast(e.message, "danger"); }
-}
-async function sendStop() {
-  try { await API.post("/api/cmd/stop"); toast("Robot stop requested", "ok"); }
-  catch (e) { toast(e.message, "danger"); }
-}
-async function clearFaults() {
-  try { await API.post("/api/cmd/clear_faults"); toast("clear-faults sent", "ok"); }
-  catch (e) { toast(e.message, "danger"); }
+// ── PUBLISHERS ─────────────────────────────────────────────────────────────
+function setupPublishers() {
+  cmdVelPub = new ROSLIB.Topic({ ros, name:'/cmd_vel', messageType:'geometry_msgs/Twist' });
+  estopPub  = new ROSLIB.Topic({ ros, name:'/ultron/estop', messageType:'std_msgs/Bool' });
+  wpAddPub  = new ROSLIB.Topic({ ros, name:'/ultron/waypoints/add', messageType:'std_msgs/String' });
+  wpDelPub  = new ROSLIB.Topic({ ros, name:'/ultron/waypoints/delete', messageType:'std_msgs/String' });
+  wpNavPub  = new ROSLIB.Topic({ ros, name:'/ultron/waypoints/navigate', messageType:'std_msgs/String' });
 }
 
-/* arrow-key teleop */
-document.addEventListener("keydown", ev => {
-  if (API.role() !== "user") return;
-  const m = { ArrowUp: [0.35, 0], ArrowDown: [-0.35, 0],
-              ArrowLeft: [0, 0.6], ArrowRight: [0, -0.6] }[ev.key];
-  if (m) { ev.preventDefault(); sendTwist(m[0], m[1]); }
+// ── SUBSCRIPTIONS ──────────────────────────────────────────────────────────
+function setupSubscriptions() {
+  const be = { reliability: 'best_effort', durability: 'volatile', depth: 3 };
+  const rel = { reliability: 'reliable', durability: 'volatile', depth: 10 };
+
+  // Battery
+  const battTopic = new ROSLIB.Topic({ ros, name:'/battery/state', messageType:'sensor_msgs/BatteryState' });
+  battTopic.subscribe(msg => {
+    const v = msg.voltage.toFixed(1);
+    const el = document.getElementById('battBadge');
+    el.textContent = 'Battery: ' + v + 'V';
+    el.className = 'batt-badge' + (msg.voltage<10.5?' crit':msg.voltage<11.1?' warn':'');
+    if(msg.voltage < 11.1) addNotif('Battery low: ' + v + 'V', 'warning');
+  });
+
+  // Fault flags
+  const faultTopic = new ROSLIB.Topic({ ros, name:'/ultron/fault', messageType:'std_msgs/UInt8' });
+  faultTopic.subscribe(msg => {
+    const f = msg.data;
+    const hex = '0x' + f.toString(16).toUpperCase().padStart(2,'0');
+    document.getElementById('statFault').textContent = hex;
+    document.getElementById('statFault').style.color = f ? 'var(--red)' : 'var(--green)';
+    const badge = document.getElementById('faultBadge');
+    if(f > 0) {
+      const names = ['ESTOP','OVERCURRENT','WATCHDOG','IMU','ENCODER','BATTERY','HEARTBEAT'];
+      const active = names.filter((_,i)=>(f>>i)&1);
+      badge.textContent = 'FAULT: ' + active.join(' | ');
+      badge.classList.add('show');
+      addNotif('FAULT active: ' + active.join(', '), 'error');
+    } else {
+      badge.classList.remove('show');
+    }
+  });
+
+  // LiDAR heartbeat
+  const scanTopic = new ROSLIB.Topic({ ros, name:'/scan', messageType:'sensor_msgs/LaserScan' });
+  scanTopic.subscribe(() => {
+    lastScanTime = Date.now();
+    document.getElementById('statLidar').textContent = 'OK';
+    document.getElementById('statLidar').style.color = 'var(--green)';
+    clearTimeout(scanTimeout);
+    scanTimeout = setTimeout(()=>{
+      document.getElementById('statLidar').textContent = 'TIMEOUT';
+      document.getElementById('statLidar').style.color = 'var(--red)';
+    }, 2000);
+  });
+
+  // /odom → serial health proxy
+  const odomTopic = new ROSLIB.Topic({ ros, name:'/odom', messageType:'nav_msgs/Odometry' });
+  odomTopic.subscribe(msg => {
+    const x = msg.pose.pose.position.x.toFixed(2);
+    const y = msg.pose.pose.position.y.toFixed(2);
+    document.getElementById('statSerial').textContent = 'OK';
+    document.getElementById('statSerial').style.color = 'var(--green)';
+    document.getElementById('rosPoseLabel').textContent = `Pose: (${x}, ${y})`;
+  });
+
+  // /safe_cmd_vel — actual velocity being sent to motors
+  const safeVelTopic = new ROSLIB.Topic({ ros, name:'/safe_cmd_vel', messageType:'geometry_msgs/Twist' });
+  safeVelTopic.subscribe(msg => {
+    const lx = msg.linear.x.toFixed(2);
+    const az = msg.angular.z.toFixed(2);
+    document.getElementById('statSafeVel').textContent = `${lx}m/s ${az}r/s`;
+    document.getElementById('statSafeVel').style.color =
+      (Math.abs(msg.linear.x)<0.01 && Math.abs(msg.angular.z)<0.01) ? 'var(--text3)' : 'var(--cyan)';
+  });
+
+  // Detection objects
+  const detTopic = new ROSLIB.Topic({ ros, name:'/ultron/detection/objects', messageType:'std_msgs/String' });
+  detTopic.subscribe(msg => {
+    try {
+      const dets = JSON.parse(msg.data);
+      const overlay = document.getElementById('detOverlay');
+      overlay.innerHTML = dets.length === 0 ? '' :
+        dets.map(d=>`<span class="det-tag">${d.label} ${Math.round(d.confidence*100)}%</span>`).join('');
+    } catch(e){}
+  });
+
+  // Robot pose from AMCL
+  const amclTopic = new ROSLIB.Topic({ ros, name:'/amcl_pose', messageType:'geometry_msgs/PoseWithCovarianceStamped' });
+  amclTopic.subscribe(msg => updateRobotMarker(msg.pose.pose.position.x, msg.pose.pose.position.y));
+
+  // Waypoint list from waypoint_manager
+  const wpListTopic = new ROSLIB.Topic({ ros, name:'/ultron/waypoints/list', messageType:'std_msgs/String' });
+  wpListTopic.subscribe(msg => {
+    try {
+      const data = JSON.parse(msg.data);
+      waypoints = data;
+      cfgSet(CFG_KEYS.WAYPOINTS, JSON.stringify(waypoints));
+      renderWpButtons();
+      renderWpMarkers();
+    } catch(e){}
+  });
+}
+
+// ── MAP ────────────────────────────────────────────────────────────────────
+function initMap() {
+  if(!ros) return;
+  document.getElementById('map-container').style.display = 'block';
+  document.getElementById('mapNoData').style.display = 'none';
+  document.getElementById('mapStatus').textContent = 'Waiting for /map...';
+
+  const container = document.getElementById('map-container');
+  const w = container.offsetWidth || 380;
+  const h = container.offsetHeight || 300;
+
+  mapViewer = new ROS2D.Viewer({ divID:'map-container', width: w, height: h });
+
+  const gridClient = new ROS2D.OccupancyGridClient({
+    ros, rootObject: mapViewer.scene, continuous: true, topic: '/map'
+  });
+
+  gridClient.on('change', () => {
+    if(gridClient.currentGrid) {
+      mapViewer.scaleToDimensions(gridClient.currentGrid.width, gridClient.currentGrid.height);
+      mapViewer.shift(gridClient.currentGrid.pose.position.x, gridClient.currentGrid.pose.position.y);
+      document.getElementById('mapStatus').textContent = 'Map loaded ✓';
+      document.getElementById('mapStatus').style.color = 'var(--green)';
+      addNotif('Map loaded from /map topic', 'success');
+    }
+  });
+
+  // Robot arrow marker
+  try {
+    robotMarker = new ROS2D.NavigationArrow({ size:0.4, strokeSize:0.05, fillColor: createjs.Graphics.getRGB(16,185,129) });
+    mapViewer.scene.addChild(robotMarker);
+  } catch(e) {}
+
+  // Click on map to add waypoint
+  mapViewer.scene.on('stagemousedown', e => {
+    if(!addingWp || !mapViewer) return;
+    // Convert stage coords to world coords
+    const scaleX = mapViewer.scene.scaleX || 1;
+    const scaleY = mapViewer.scene.scaleY || 1;
+    const offX   = mapViewer.scene.x || 0;
+    const offY   = mapViewer.scene.y || 0;
+    const wx = (e.stageX - offX) / scaleX;
+    const wy = (e.stageY - offY) / scaleY;
+    pendingWpPos = { x: wx, y: -wy }; // ros2djs flips Y
+    openWpModal(wx, -wy);
+    setAddingWp(false);
+  });
+
+  renderWpMarkers();
+}
+
+function updateRobotMarker(x, y) {
+  if(!robotMarker || !mapViewer) return;
+  try {
+    robotMarker.x = x * mapViewer.scene.scaleX + (mapViewer.scene.x || 0);
+    robotMarker.y = -y * mapViewer.scene.scaleY + (mapViewer.scene.y || 0);
+    mapViewer.scene.update && mapViewer.scene.update();
+  } catch(e){}
+}
+
+function renderWpMarkers() {
+  // Future enhancement: render waypoint markers on the map canvas
+}
+
+// ── WAYPOINTS ──────────────────────────────────────────────────────────────
+function loadWaypointsFromStorage() {
+  try { waypoints = JSON.parse(cfg(CFG_KEYS.WAYPOINTS, '{}')); } catch(e) { waypoints = {}; }
+}
+
+function loadWaypointsFromROS() {
+  if(!ros) return;
+  // Trigger waypoint_manager to publish by subscribing — it auto-publishes every 5s
+  // Also try a one-shot request topic
+  const reqTopic = new ROSLIB.Topic({ ros, name:'/ultron/waypoints/list_request', messageType:'std_msgs/String' });
+  reqTopic.publish(new ROSLIB.Message({ data:'get' }));
+}
+
+function refreshWaypoints() { loadWaypointsFromROS(); addNotif('Refreshing waypoints...','info'); }
+
+function toggleAddWaypoint() {
+  setAddingWp(!addingWp);
+}
+
+function setAddingWp(val) {
+  addingWp = val;
+  const btn = document.getElementById('addWpBtn');
+  const info = document.getElementById('mapInfo');
+  if(val) {
+    btn.textContent = '✕ Cancel';
+    btn.style.borderColor = 'var(--amber)';
+    btn.style.color = 'var(--amber)';
+    info.textContent = '📍 Click on the map to place a waypoint';
+    info.style.color = 'var(--amber)';
+    document.getElementById('mapCanvas').style.cursor = 'crosshair';
+  } else {
+    btn.textContent = '+ Add Waypoint';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    info.textContent = 'Click map to add waypoint';
+    info.style.color = '';
+    document.getElementById('mapCanvas').style.cursor = 'default';
+  }
+}
+
+function openWpModal(x, y) {
+  document.getElementById('wpCoordInfo').textContent = `Position: (${x.toFixed(3)}, ${y.toFixed(3)})`;
+  document.getElementById('wpName').value = '';
+  document.getElementById('wpOverlay').classList.add('show');
+  setTimeout(()=>document.getElementById('wpName').focus(), 100);
+}
+
+function cancelWp() {
+  document.getElementById('wpOverlay').classList.remove('show');
+  pendingWpPos = null;
+}
+
+function confirmWp() {
+  const name = document.getElementById('wpName').value.trim();
+  if(!name) { alert('Please enter a waypoint name.'); return; }
+  if(!pendingWpPos) { cancelWp(); return; }
+
+  const wp = { name, x: pendingWpPos.x, y: pendingWpPos.y, theta: 0, description: name };
+  waypoints[name] = wp;
+  cfgSet(CFG_KEYS.WAYPOINTS, JSON.stringify(waypoints));
+
+  if(wpAddPub) {
+    wpAddPub.publish(new ROSLIB.Message({ data: JSON.stringify(wp) }));
+  }
+
+  renderWpButtons();
+  cancelWp();
+  addNotif(`Waypoint "${name}" added at (${wp.x.toFixed(2)}, ${wp.y.toFixed(2)})`, 'success');
+}
+
+function deleteWaypoint(name, e) {
+  e.stopPropagation();
+  if(!confirm(`Delete waypoint "${name}"?`)) return;
+  delete waypoints[name];
+  cfgSet(CFG_KEYS.WAYPOINTS, JSON.stringify(waypoints));
+  if(wpDelPub) wpDelPub.publish(new ROSLIB.Message({ data: name }));
+  renderWpButtons();
+  addNotif(`Waypoint "${name}" deleted`, 'info');
+}
+
+function navigateTo(name) {
+  if(!ros) { addNotif('Not connected to robot', 'error'); return; }
+  if(wpNavPub) {
+    wpNavPub.publish(new ROSLIB.Message({ data: name }));
+    addNotif(`Navigating to "${name}"...`, 'info');
+  }
+}
+
+function renderWpButtons() {
+  const container = document.getElementById('wpButtons');
+  const names = Object.keys(waypoints);
+  document.getElementById('wpCount').textContent = names.length + ' waypoint' + (names.length===1?'':'s');
+  if(names.length === 0) {
+    container.innerHTML = '<div class="no-wp">No waypoints yet.<br>Add one by clicking the map.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  names.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'wp-btn';
+    btn.innerHTML = `<span>🏁</span><span style="flex:1">${name}</span>
+      <span style="font-size:10px;color:var(--text3)">(${waypoints[name].x.toFixed(1)}, ${waypoints[name].y.toFixed(1)})</span>
+      <button class="wp-btn-del" onclick="deleteWaypoint('${name}', event)" title="Delete">×</button>`;
+    btn.onclick = () => navigateTo(name);
+    container.appendChild(btn);
+  });
+}
+
+// ── VIDEO ──────────────────────────────────────────────────────────────────
+function startVideo() {
+  const topic  = vidTopic || '/detection/image';
+  const url    = (vidUrl || DEFAULT_VID_URL) + '/stream?topic=' + encodeURIComponent(topic) + '&type=mjpeg&quality=60';
+  const feed   = document.getElementById('videoFeed');
+  const noVid  = document.getElementById('noVideo');
+  clearTimeout(videoLoadTimer);
+  feed.style.display = 'none';
+  noVid.style.display = 'flex';
+  feed.src = url;
+  videoLoadTimer = setTimeout(()=>{
+    if(feed.style.display === 'none') {
+      addNotif('Video stream timeout — check web_video_server', 'warning');
+    }
+  }, 8000);
+}
+
+let fpsCounter = 0, lastFpsTime = Date.now();
+function onVideoLoad() {
+  document.getElementById('videoFeed').style.display = 'block';
+  document.getElementById('noVideo').style.display = 'none';
+  clearTimeout(videoLoadTimer);
+  fpsCounter++;
+  const now = Date.now();
+  if(now - lastFpsTime > 2000) {
+    document.getElementById('fpsLabel').textContent = Math.round(fpsCounter/((now-lastFpsTime)/1000)) + ' fps';
+    fpsCounter = 0; lastFpsTime = now;
+  }
+}
+
+function onVideoError() {
+  document.getElementById('videoFeed').style.display = 'none';
+  document.getElementById('noVideo').style.display = 'flex';
+  clearTimeout(videoLoadTimer);
+  setTimeout(startVideo, 5000);
+}
+
+// ── TELEOP ─────────────────────────────────────────────────────────────────
+let telInterval = null;
+function telStart(linear, angular) {
+  telStop();
+  sendVel(linear * (currentSpeed/0.3), angular);
+  telInterval = setInterval(() => sendVel(linear * (currentSpeed/0.3), angular), 100);
+}
+function telStop() { clearInterval(telInterval); telInterval = null; sendVel(0, 0); }
+
+function sendVel(linear, angular) {
+  if(!cmdVelPub) return;
+  cmdVelPub.publish(new ROSLIB.Message({
+    linear:{ x: linear, y:0, z:0 },
+    angular:{ x:0, y:0, z: angular }
+  }));
+}
+
+function updateSpeed() {
+  currentSpeed = parseFloat(document.getElementById('speedSlider').value);
+  document.getElementById('speedVal').textContent = currentSpeed.toFixed(2) + ' m/s';
+}
+
+function emergencyStop() {
+  sendVel(0, 0);
+  if(estopPub) estopPub.publish(new ROSLIB.Message({ data: true }));
+  addNotif('⚠ EMERGENCY STOP SENT', 'error');
+}
+
+// ── KEYBOARD ───────────────────────────────────────────────────────────────
+const KB_ACTIVE = new Set();
+function setupKeyboard() {
+  document.addEventListener('keydown', e => {
+    if(['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+    if(KB_ACTIVE.has(e.key)) return;
+    KB_ACTIVE.add(e.key);
+    const spd = currentSpeed;
+    switch(e.key) {
+      case 'ArrowUp': case 'w': sendVel(spd, 0); document.getElementById('telFwd').classList.add('active'); break;
+      case 'ArrowDown': case 's': sendVel(-spd, 0); document.getElementById('telBack').classList.add('active'); break;
+      case 'ArrowLeft': case 'a': sendVel(0, 0.5); document.getElementById('telLeft').classList.add('active'); break;
+      case 'ArrowRight': case 'd': sendVel(0, -0.5); document.getElementById('telRight').classList.add('active'); break;
+      case ' ': sendVel(0,0); break;
+    }
+    e.preventDefault();
+  });
+  document.addEventListener('keyup', e => {
+    if(['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+    KB_ACTIVE.delete(e.key);
+    const dirs = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
+    if(dirs.includes(e.key)) {
+      sendVel(0,0);
+      ['telFwd','telBack','telLeft','telRight'].forEach(id=>document.getElementById(id).classList.remove('active'));
+    }
+  });
+}
+
+// ── SETTINGS ───────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('cfgRosUrl').value   = rosUrl;
+  document.getElementById('cfgVidUrl').value   = vidUrl;
+  document.getElementById('cfgVidTopic').value = vidTopic;
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('show'); }
+function saveSettings() {
+  rosUrl   = document.getElementById('cfgRosUrl').value.trim();
+  vidUrl   = document.getElementById('cfgVidUrl').value.trim();
+  vidTopic = document.getElementById('cfgVidTopic').value.trim() || DEFAULT_VID_TOPIC;
+  cfgSet(CFG_KEYS.ROS_URL, rosUrl);
+  cfgSet(CFG_KEYS.VID_URL, vidUrl);
+  cfgSet(CFG_KEYS.VID_TOPIC, vidTopic);
+  closeSettings();
+  addNotif('Settings saved. Reconnecting...', 'info');
+  connectRos();
+  startVideo();
+}
+function changePin() {
+  const old = document.getElementById('cfgOldPin').value;
+  const nw  = document.getElementById('cfgNewPin').value;
+  if(old !== PIN) { alert('Current PIN is incorrect.'); return; }
+  if(nw.length < 4) { alert('New PIN must be at least 4 characters.'); return; }
+  PIN = nw;
+  cfgSet(CFG_KEYS.PIN, PIN);
+  document.getElementById('cfgOldPin').value = '';
+  document.getElementById('cfgNewPin').value = '';
+  addNotif('PIN changed successfully', 'success');
+}
+
+// Close overlays on background click
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('show'); });
 });
-document.addEventListener("keyup", ev => {
-  if (API.role() !== "user") return;
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(ev.key)) sendStop();
-});
 
-init();
+// ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+function addNotif(msg, type='info') {
+  const strip = document.getElementById('notifStrip');
+  const div = document.createElement('div');
+  div.className = 'notif ' + type;
+  const t = new Date().toTimeString().slice(0,8);
+  div.innerHTML = `<span class="notif-time">${t}</span><span class="notif-msg">${msg}</span>`;
+  strip.insertBefore(div, strip.firstChild);
+  while(strip.children.length > 25) strip.lastChild.remove();
+  setTimeout(()=>{ if(div.parentNode) div.style.opacity='0.4'; }, 10000);
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────
+window.onload = () => {
+  document.getElementById('pd1').focus();
+  document.querySelectorAll('.pd').forEach(d => {
+    d.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  });
+};
 </script>
 </body>
 </html>

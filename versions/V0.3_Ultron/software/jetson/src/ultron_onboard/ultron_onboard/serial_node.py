@@ -9,6 +9,8 @@ Canonical behavior (Bible Section 9, NODE 4):
   PUB  /imu/data          (Imu,     RELIABLE) <- PKT_IMU (0x02)
   PUB  /battery/state     (BatteryState, RELIABLE) <- PKT_BATTERY (0x03)
   PUB  /ultron/fault      (UInt8,   RELIABLE) <- PKT_FAULT (0x04)
+  PUB  /ultron/current_left  (Float32, RELIABLE) <- PKT_CURRENT (0x06)
+  PUB  /ultron/current_right (Float32, RELIABLE) <- PKT_CURRENT (0x06)
 
 v4.2 B4: this node does NOT publish odom->base_link TF — the laptop EKF is
 the single publisher of that transform.
@@ -25,7 +27,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu, BatteryState
 from geometry_msgs.msg import Twist
-from std_msgs.msg import UInt8, Empty
+from std_msgs.msg import UInt8, Empty, Float32
 
 from ultron_onboard import ultron_protocol as proto
 
@@ -53,6 +55,8 @@ class SerialNode(Node):
         self._imu_pub = self.create_publisher(Imu, '/imu/data', rel)
         self._bat_pub = self.create_publisher(BatteryState, '/battery/state', rel)
         self._flt_pub = self.create_publisher(UInt8, '/ultron/fault', rel)
+        self._curr_l_pub = self.create_publisher(Float32, '/ultron/current_left', rel)
+        self._curr_r_pub = self.create_publisher(Float32, '/ultron/current_right', rel)
 
         # v4.2 B4: NO TransformBroadcaster here; EKF owns odom->base_link.
         self._x = self._y = self._theta = 0.0
@@ -150,6 +154,13 @@ class SerialNode(Node):
             self.get_logger().warn(
                 f'Fault:0x{m.data:02X} ESTOP={bool(m.data & 1)} '
                 f'HB={bool(m.data & 64)}')
+        elif pkt_type == proto.PKT_CURRENT and len(payload) == 8:
+            cl, cr = proto.unpack_current(payload)
+            m = Float32()
+            m.data = float(cl)
+            self._curr_l_pub.publish(m)
+            m.data = float(cr)
+            self._curr_r_pub.publish(m)
 
     def _odom(self, lt, rt, arduino_ms, stamp):
         # Real inter-packet dt from Arduino ts_ms (encoder ~33 Hz).

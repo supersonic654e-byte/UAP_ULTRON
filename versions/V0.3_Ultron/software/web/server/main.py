@@ -6,7 +6,7 @@ FastAPI application that:
   - authenticates the 4-digit user PIN (role 'user') and the 10-char admin
     password (roles 'admin' read-only / 'admin_control' override)
   - streams live robot state, depth camera feed and map over WebSocket
-  - accepts robot commands (teleop / "go to room" / stop / clear faults)
+  - accepts robot commands (teleop / "go to waypoint" / stop / clear faults)
     with server-side safety gating (V0.3 clamps, live-only)
 
 Run on the laptop (the V0.3 "cloud"), host networking, same CycloneDDS
@@ -61,7 +61,7 @@ class TwistCmd(BaseModel):
 
 
 class GoalCmd(BaseModel):
-    room_id: str | None = None
+    waypoint_id: str | None = None
     x: float | None = None
     y: float | None = None
     theta: float = 0.0
@@ -180,9 +180,9 @@ def status(creds: dict = Depends(_require_role("user", "admin_control"))):
     return state.snapshot()
 
 
-@app.get("/api/rooms")
-def rooms(creds: dict = Depends(_require_role("user", "admin_control"))):
-    return {"rooms": store.get_rooms()}
+@app.get("/api/waypoints")
+def waypoints(creds: dict = Depends(_require_role("user", "admin_control"))):
+    return {"waypoints": store.get_waypoints()}
 
 
 @app.get("/api/admin/dashboard")
@@ -200,7 +200,7 @@ def admin_dashboard(creds: dict = Depends(_require_role("admin"))):
         "missions": store.missions(),
         "notifications": store.all_notifications(),
         "activity": store.recent_activity(),
-        "rooms": store.get_rooms(),
+        "waypoints": store.get_waypoints(),
     }
 
 
@@ -220,12 +220,12 @@ def change_pin(body: ChangePin, creds: dict = Depends(_require_role("admin"))):
     return {"ok": True}
 
 
-@app.post("/api/admin/rooms")
-def update_rooms(body: RoomsUpdate,
-                 creds: dict = Depends(_require_role("admin"))):
-    store.set_rooms(body.rooms)
-    store.log_activity("admin", "update_rooms", f"{len(body.rooms)} rooms")
-    return {"ok": True, "rooms": store.get_rooms()}
+@app.post("/api/admin/waypoints")
+def update_waypoints(body: RoomsUpdate,
+                     creds: dict = Depends(_require_role("admin"))):
+    store.set_waypoints(body.rooms)
+    store.log_activity("admin", "update_waypoints", f"{len(body.rooms)} waypoints")
+    return {"ok": True, "waypoints": store.get_waypoints()}
 
 
 @app.get("/api/admin/activity")
@@ -270,18 +270,18 @@ def cmd_stop(creds: dict = Depends(_require_role("user", "admin_control"))):
 @app.post("/api/cmd/goal")
 def cmd_goal(body: GoalCmd,
              creds: dict = Depends(_require_role("user", "admin_control"))):
-    rooms = store.get_rooms()
-    if body.room_id:
-        if body.room_id not in rooms:
-            raise HTTPException(404, "unknown room")
-        r = rooms[body.room_id]
+    waypoints = store.get_waypoints()
+    if body.waypoint_id:
+        if body.waypoint_id not in waypoints:
+            raise HTTPException(404, "unknown waypoint")
+        r = waypoints[body.waypoint_id]
         x, y, theta = r["x"], r["y"], r["theta"]
-        label = r.get("label", body.room_id)
+        label = r.get("label", body.waypoint_id)
     elif body.x is not None and body.y is not None:
         x, y, theta = body.x, body.y, body.theta
         label = f"goal({x},{y})"
     else:
-        raise HTTPException(400, "provide room_id or x/y")
+        raise HTTPException(400, "provide waypoint_id or x/y")
     if not state.is_live():
         raise HTTPException(409, "robot_not_live")
     result = bridge.send_goal(x, y, theta)
@@ -295,7 +295,7 @@ def cmd_goal(body: GoalCmd,
 
 @app.post("/api/cmd/clear_faults")
 def cmd_clear_faults(creds: dict = Depends(_require_role("user",
-                                                         "admin_control"))):
+                                                          "admin_control"))):
     bridge.clear_faults()
     store.log_activity(creds["role"], "clear_faults", "sent to Arduino")
     store.notify("info", "Clear-faults sent (E-stop must be released)")

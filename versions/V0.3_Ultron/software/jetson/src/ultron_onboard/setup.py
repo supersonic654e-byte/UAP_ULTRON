@@ -23,6 +23,7 @@ setup(
             'safety_node = ultron_onboard.safety_node:main',
             'serial_node = ultron_onboard.serial_node:main',
             'data_logger_node = ultron_onboard.data_logger_node:main',
+            'waypoint_manager = ultron_onboard.waypoint_manager:main',
         ],
     },
 )

@@ -192,6 +192,15 @@ void loop(){
         uint8_t n=build_encoder_packet(tx_tmp,lc,rc,now_ms);
         tx_enqueue(tx_tmp,n);
         if(imu_ok){n=build_imu_packet(tx_tmp,&imu);tx_enqueue(tx_tmp,n);}
+        // Publish motor current every 3rd cycle (~10 Hz)
+        static uint8_t curr_div=0;
+        if(++curr_div>=3){
+            curr_div=0;
+            float cl=read_current(CURRENT_SENSE_L_PIN);
+            float cr=read_current(CURRENT_SENSE_R_PIN);
+            n=build_current_packet(tx_tmp,cl,cr);
+            tx_enqueue(tx_tmp,n);
+        }
     }
     if(fault_flags){
         uint8_t n=build_fault_packet(tx_tmp,fault_flags);

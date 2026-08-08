@@ -46,13 +46,16 @@ class RobotState:
         self.battery = {"voltage": 0.0, "present": False}
         self.faults = {"flags": 0, "names": []}
         self.lidar = {"front": None, "left": None, "right": None,
-                      "min": None, "rate": 0.0}
-        self.kinect = {"front": None, "min": None}
+                      "min": None, "rate": 0.0, "status": "free",
+                      "level": "ok", "avoidance": {}, "clusters": []}
+        self.kinect = {"front": None, "min": None, "clusters": []}
+        self.current = {"left": 0.0, "right": 0.0}
         self.mode = "idle"          # idle | teleop | navigating | stopped
         self.last_cmd = {"vx": 0.0, "wz": 0.0, "ts": 0.0}
         self.ros_ready = False
         self.lidar_rate = 0.0
         self.last_scan_time = 0.0
+        self.safe_vel = {"linear": 0.0, "angular": 0.0}
 
     # ---- updates (called by the ROS bridge thread) ------------------------
     def update_heartbeat(self, seq):
@@ -78,6 +81,11 @@ class RobotState:
             self.lidar.update(front=front, left=left, right=right, min=rmin)
             self.last_scan_time = time.time()
 
+    def update_lidar_status(self, status, level, avoidance, clusters):
+        with self.lock:
+            self.lidar.update(status=status, level=level,
+                              avoidance=avoidance, clusters=clusters)
+
     def update_lidar_rate(self):
         now = time.time()
         dt = now - self.last_scan_time
@@ -88,6 +96,18 @@ class RobotState:
     def update_kinect(self, front, rmin):
         with self.lock:
             self.kinect.update(front=front, min=rmin)
+
+    def update_kinect_clusters(self, clusters):
+        with self.lock:
+            self.kinect.update(clusters=clusters)
+
+    def update_current(self, left, right):
+        with self.lock:
+            self.current.update(left=round(left, 2), right=round(right, 2))
+
+    def update_safe_vel(self, linear, angular):
+        with self.lock:
+            self.safe_vel.update(linear=round(linear, 2), angular=round(angular, 2))
 
     def set_mode(self, mode):
         with self.lock:
@@ -106,6 +126,8 @@ class RobotState:
                 "faults": dict(self.faults),
                 "lidar": dict(self.lidar),
                 "kinect": dict(self.kinect),
+                "current": dict(self.current),
+                "safe_vel": dict(self.safe_vel),
                 "mode": self.mode,
                 "last_cmd": dict(self.last_cmd),
                 "ros_ready": self.ros_ready,

@@ -6,7 +6,7 @@ reads the robot's ROS topics over CycloneDDS, and serves two web UIs:
 | UI | URL | Access | Role |
 |---|---|---|---|
 | **Admin Command Centre** | `/admin` | 10-char admin password | Read-only data/ops dashboard by default; **admin_control** (re-enter the same password) unlocks robot operation + live camera/sensors |
-| **User Control Panel** | `/user` | 4-digit PIN | Remote robot control from anywhere (live camera + obstacle detection, live map, "go to room…", teleop, notifications, activity) |
+| **User Control Panel** | `/user` | 4-digit PIN | Remote robot control from anywhere (live camera + obstacle detection, live map, waypoint navigation, teleop, notifications, activity, system status) |
 
 ## Design rules implemented (per the system requirements)
 
@@ -21,6 +21,35 @@ reads the robot's ROS topics over CycloneDDS, and serves two web UIs:
 - If the laptop (web server) goes offline, robot communication via the web
   cuts off; onboard safety (Jetson safety node + Arduino watchdogs) continues
   to protect the robot (Bible §16 network-drop behavior).
+
+## User Control Panel features (Ultron_V0.3 r4 — redesigned)
+
+- **PIN-protected entry** — 4-digit operator PIN (admin-changeable), with
+  animated orbit login screen. Session persists across browser reloads.
+- **Live camera feed** — MJPEG stream from `web_video_server` (topic
+  `/detection/image` by default, configurable). Colorized depth rendering
+  with obstacle detection overlay (red ≤0.35 m STOP / amber ≤0.70 m SLOW /
+  green clear). Continuous object detection tags from `/ultron/detection/objects`.
+- **Live map** — `ros2djs` viewer subscribing to `/map` (OccupancyGrid).
+  Robot pose overlay (AMCL `/amcl_pose` or EKF `/odom`). Click on map to
+  place named waypoints; waypoints persist to localStorage and sync to
+  `/ultron/waypoints` topic for robot-side persistence.
+- **Navigation** — Named waypoint buttons (auto-loaded from waypoint_manager).
+  "Go to \<waypoint\>" publishes to `/ultron/waypoints/navigate`; Nav2
+  action `/navigate_to_pose` used on laptop for goal execution.
+- **Manual teleop** — On-screen 5-button pad (▲/◄/■/►/▼) with speed slider
+  (0.05–0.45 m/s), plus full keyboard support (WASD / arrows, space = stop).
+  Server-side clamped to 0.45 m/s (teleop) and 0.35 m/s (goals).
+- **E-STOP** — Prominent pulsating red button in top bar; publishes
+  `/ultron/estop` (Bool) + zero `/cmd_vel` instantly.
+- **System status panel** — Real-time tiles: LiDAR health (OK/TIMEOUT),
+  Serial/ODOM health, Fault flags (hex + decoded names), Safe velocity
+  actually sent to motors (`/safe_cmd_vel`), Left/Right motor current
+  (ACS712 via `/ultron/current_left/right`).
+- **Notifications strip** — Color-coded live log (success/warning/error/info)
+  with timestamps, capped at 25 entries, auto-fade after 10s.
+- **Settings modal** — rosbridge URL, video stream base URL, video topic,
+  and operator PIN change (requires current PIN).
 
 ## Layout
 
@@ -73,7 +102,7 @@ python -m pytest -q software/web/tests
 ## Command safety (server-side)
 
 - Teleop clamped to 0.45 m/s, yaw to 1.0 rad/s (matches firmware).
-- Nav2 "go to room…" goals capped at 0.35 m/s (B6).
+- Nav2 "go to waypoint…" goals capped at 0.35 m/s (B6).
 - Commands rejected while the robot heartbeat is stale (`robot_not_live`).
 - `admin` role is read-only; only `admin_control` (10-char password) or
   `user` (PIN) may issue commands.

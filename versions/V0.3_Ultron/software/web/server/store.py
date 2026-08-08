@@ -2,7 +2,7 @@
 
 Tables:
   settings   — key/value: user_pin, admin_salt, admin_hash, token_secret,
-               robot_name, rooms (JSON), mission_id.
+               robot_name, waypoints (JSON), mission_id.
   activity   — append-only operator activity log (role, action, detail, ts).
   notifications — event queue shown in both dashboards.
   missions   — pilot mission records (mirrors data_pilot/ artifacts).
@@ -77,8 +77,8 @@ class Store:
                 generated["admin_password"] = pw
             if self.get("token_secret") is None:
                 self.set("token_secret", os.urandom(32).hex())
-            if self.get("rooms") is None:
-                self.set("rooms", json.dumps({
+            if self.get("waypoints") is None:
+                self.set("waypoints", json.dumps({
                     "room1": {"x": 2.0, "y": 0.0, "theta": 0.0, "label": "Room 1"},
                     "room2": {"x": 0.0, "y": 2.0, "theta": 1.5708, "label": "Room 2"},
                     "room3": {"x": -2.0, "y": 0.0, "theta": 3.1416, "label": "Room 3"},
@@ -102,14 +102,14 @@ class Store:
                 (key, str(value)))
             self._conn.commit()
 
-    def get_rooms(self):
+    def get_waypoints(self):
         try:
-            return json.loads(self.get("rooms") or "{}")
+            return json.loads(self.get("waypoints") or "{}")
         except json.JSONDecodeError:
             return {}
 
-    def set_rooms(self, rooms):
-        self.set("rooms", json.dumps(rooms))
+    def set_waypoints(self, waypoints):
+        self.set("waypoints", json.dumps(waypoints))
 
     # ---- activity ---------------------------------------------------------
     def log_activity(self, role, action, detail=""):

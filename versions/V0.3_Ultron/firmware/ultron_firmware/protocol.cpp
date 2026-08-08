@@ -56,3 +56,12 @@ uint8_t build_fault_packet(uint8_t* out, uint8_t flags){
     out[3]=flags;
     return pkt_finish(out, PKT_FAULT, 1);
 }
+
+uint8_t build_current_packet(uint8_t* out, float left, float right){
+    union { uint32_t u; float f; } xl, xr;
+    xl.f = left;
+    xr.f = right;
+    out[3]=(uint8_t)(xl.u>>24); out[4]=(uint8_t)(xl.u>>16); out[5]=(uint8_t)(xl.u>>8); out[6]=(uint8_t)xl.u;
+    out[7]=(uint8_t)(xr.u>>24); out[8]=(uint8_t)(xr.u>>16); out[9]=(uint8_t)(xr.u>>8); out[10]=(uint8_t)xr.u;
+    return pkt_finish(out, PKT_CURRENT, 8);
+}

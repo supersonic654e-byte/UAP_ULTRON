@@ -82,6 +82,7 @@
 #define PKT_BATTERY         0x03
 #define PKT_FAULT           0x04
 #define PKT_HEARTBEAT       0x05
+#define PKT_CURRENT         0x06    // left/right motor current (Amps)
 #define PKT_CLEAR_FAULTS    0x07    // v4.2 B7
 
 // ── FAULT BITS ────────────────────────────────────────────────────────────────
