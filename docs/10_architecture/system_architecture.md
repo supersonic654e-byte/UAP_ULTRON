@@ -73,3 +73,41 @@ The critical safety path (E-stop → watchdogs → safety node → heartbeat) is
 - Kinect is a temporary sensor; the pipeline must stay camera_info-driven.
 
 See `20_engineering_process/engineering_audit.md` for the full list.
+
+---
+
+## 6. Robustness & FMEA notes (industrial-grade lens)
+
+> Added by **Sadnan Sajid355** (industrial-grade system architecture design).
+
+### 6.1 Design-for-failure rules
+
+1. **Fail-safe default.** Every actuator defaults OFF. Any detected anomaly
+   latches a fault; recovery is explicit, never automatic.
+2. **Single source of truth for motion authority.** Only the safety node may
+   write `/safe_cmd_vel`; only the Arduino may write PWM.
+3. **No silent degradation.** Sensor loss always escalates to a defined state
+   (LiDAR loss → stop; Kinect loss → LiDAR-only).
+4. **Time-based guards everywhere.** Heartbeat, cmd_vel, stale-sensor, WDT —
+   every deadline is a number we can tune and test.
+
+### 6.2 High-level FMEA (top failures)
+
+| Failure | Detection | Response | Current status |
+|---|---|---|---|
+| Motor stall / overcurrent | ACS712 + Arduino | SW trip 7 A/500 ms → E-stop; fuse last resort | Implemented |
+| Firmware hang | HW WDT 8 s | Arduino reset; motors stopped | Implemented |
+| Jetson node death | Arduino watchdogs | stop in 500 ms | Implemented |
+| Network/laptop loss | cmd_vel watchdog | stop in 500 ms; no auto-resume | Implemented |
+| LiDAR failure | safety_node stale check | stop ≤ 1 s | Implemented |
+| Speed inaccuracy (battery sag) | — (not measured) | Nav2 cap 0.35 m/s | **Gap → P0/P1 velocity control** |
+| Localization drift (AMCL) | RViz monitor | human re-localize | Ops procedure |
+| Privacy leak (raw video) | process review | consent gate + encryption | Implemented (policy) |
+
+### 6.3 What "industrial-grade" means here (honestly)
+
+- Bounded scope: we target **deterministic, auditable behavior** on V0.3, not
+  certification. ISO/RoHS/EMC work is an InsightV1.0+ task.
+- Every safety claim we make must map to a test in `V0.3_Ultron/tests/`.
+- FMEA is re-run whenever a new failure mode is observed in the field, and the
+  result is recorded in the changelog.
