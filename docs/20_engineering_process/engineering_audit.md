@@ -1,6 +1,6 @@
 # UAP_ULTRON — Engineering Audit & Corrected Architecture
 
-**Audited document:** `../versions/V0.3_Ultron/implementation_bible.md` (formerly `Robot_ODA_Ultron_v4.2.txt`) — the implementation Bible for **Ultron_V0.3**.
+**Audited document:** `../versions/V0.3_Ultron/implementation_bible.md` — the implementation Bible for **Ultron_V0.3**.
 **Date:** 08 August 2026
 **Scope:** Full engineering audit: hardware, power, wiring, software/ROS2, networking, safety, AI/mapping/navigation, upgradeability to Ultron_insightV1.0, deployment readiness.
 **Method:** Every section was re-derived and checked (pin mapping, timers, interrupts, serial protocol, kinematics math, power budget, USB allocation, DDS behavior, Nav2/safety margins, firmware logic). No assumption of correctness because "it is already written."

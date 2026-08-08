@@ -9,11 +9,11 @@ The build reference is the [implementation Bible](versions/V0.3_Ultron/implement
 
 ## Version lineage
 
-| Generation | Former name | Role | Status |
-|---|---|---|---|
-| Ultron_V0.1 | Robot_ODA_v1.0 (2024) | Lab / learning prototype | Retired |
-| Ultron_V0.2 | Robot_ODA_v2.0 (2025) | Research prototype | Retired |
-| **Ultron_V0.3** | robot_odaV4 / 3rd build | Final testing + pre-deployment prototype | **Active** |
+| Generation | Role | Status |
+|---|---|---|
+| Ultron_V0.1 (2024) | Lab / learning prototype | Retired |
+| Ultron_V0.2 (2025) | Research prototype | Retired |
+| **Ultron_V0.3** | Final testing + pre-deployment prototype | **Active** |
 | Ultron_insightV1.0 | — | First real-world deployment version | Planned |
 | Ultron_VitalsV2.0 · Ultron_MedAssistV3.0 | — | Patient monitoring · AI diagnosis | Future |
 

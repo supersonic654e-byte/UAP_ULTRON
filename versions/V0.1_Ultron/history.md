@@ -5,7 +5,7 @@
 
 ---
 
-## Ultron_V0.1 (formerly Robot_ODA_v1.0, 2024)
+## Ultron_V0.1 (2024)
 
 **Role:** Laboratory / learning prototype — the first physical build.
 

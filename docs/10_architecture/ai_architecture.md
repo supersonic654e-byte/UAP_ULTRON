@@ -158,8 +158,7 @@ Same principle. Different scale. Same result.
 ROADMAP NOTE:
 
 UAP_ULTRON is the mother project for a line of autonomous medical robots.
-Project lineage (former names renamed): the early laboratory/research
-prototypes Robot_ODA_v1.0 and Robot_ODA_v2.0 are Ultron_V0.1 and
+Project lineage: the early laboratory/research prototypes are Ultron_V0.1 and
 Ultron_V0.2. The current third physical build is Ultron_V0.3 — the last
 testing / pre-real-world-deployment version, used for the first real-world
 data-collection pilot (patrol sensor streams, depth-derived features and

@@ -8,8 +8,8 @@ disagree, this file wins and the other one is wrong — fix the other one.
 | Canonical token | Meaning |
 |---|---|
 | `UAP_ULTRON` | The mother project (repo root). Always uppercase. |
-| `Ultron_V0.1` | First laboratory prototype (formerly `Robot_ODA_v1.0`, 2024). |
-| `Ultron_V0.2` | Research prototype (formerly `Robot_ODA_v2.0`, 2025). |
+| `Ultron_V0.1` | First laboratory prototype (2024). |
+| `Ultron_V0.2` | Research prototype (2025). |
 | `Ultron_V0.3` | Current build — final testing / pre-deployment prototype. |
 | `Ultron_insightV1.0` | First real-world deployment version. |
 | `Ultron_VitalsV2.0` | Patient-monitoring generation (future). |
@@ -42,24 +42,21 @@ Rules:
 | Device symlinks | `/dev/ultron_*` | `/dev/ultron_arduino`, `/dev/ultron_lidar` |
 | Hostname | `ultron-v03` | — |
 | Workspace / data paths | `/mnt/ssd/ultron`, `~/ultron_laptop` | — |
-| Firmware | `ultron_firmware/` | `config.h`, `robot_oda_firmware.ino` renamed |
+| Firmware | `ultron_firmware/` | `config.h`, `ultron_firmware.ino` |
 
 Standard ROS topics (`/scan`, `/odom`, `/imu/data`, `/cmd_vel`, `/battery/state`)
 keep their canonical names — they are interface contracts with Nav2/SLAM.
 
-## 4. Renaming history (why this file exists)
+## 4. Renaming discipline (why this file exists)
 
-In early 2026 the project carried several inconsistent names
-(`Robot_ODA_v1.0/v2.0`, `robot_odaV4`, and an abandoned optional payload
-concept). In the v5.0 restructure:
+In early 2026 the project carried several inconsistent names across documents,
+firmware and design notes. In the restructure that produced this monorepo:
 
-- `Robot_ODA_v1.0` → `Ultron_V0.1`
-- `Robot_ODA_v2.0` → `Ultron_V0.2`
-- `robot_odaV4` / current build → `Ultron_V0.3`
-- All abandoned-payload references were **removed**, not hidden.
-
-The old names may appear only in *former-name mapping tables* and history
-documents, never as an active identity.
+- Every generation was assigned a single canonical `Ultron_V*` token (above).
+- All legacy identifiers were **replaced**, not hidden — this file is the
+  single source of truth for what each generation is called.
+- The one canonical token per generation must be used consistently everywhere:
+  titles, folders, firmware, topics, and design docs.
 
 ## 5. Document versioning
 

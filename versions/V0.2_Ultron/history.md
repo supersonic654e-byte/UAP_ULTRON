@@ -1,6 +1,4 @@
-# Ultron_V0.2 (formerly Robot_ODA_v2.0) — Experimental / Research Prototype
-
- (formerly Robot_ODA_v2.0, 2025)
+# Ultron_V0.2 — Experimental / Research Prototype
 
 **Role:** Experimental / research prototype.
 
