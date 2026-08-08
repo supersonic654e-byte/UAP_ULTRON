@@ -1,6 +1,6 @@
 # V0.3 — Hardware Base
 
-> Maintained by **Sadnan Sajid355** (hardware base).
+> Maintained by **Student Researcher & Technical Expert** (hardware base).
 > Reviewed: 2026-08-08. Authoritative detail: `implementation_bible.md` §2.
 
 This is the hardware foundation the robot is built on. It is deliberately

@@ -1,6 +1,6 @@
 # Sensor Fusion Architecture
 
-> Maintainers: **Sadnan Sajid355** (sensor-fusion build parts).
+> Maintainers: **Student Researcher & Technical Expert** (sensor-fusion build parts).
 > Reviewed: 2026-08-08.
 
 ## 1. Fusion goal

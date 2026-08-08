@@ -1,6 +1,6 @@
 # Sensor Fusion — Build Parts
 
-> Contributed by **Sadnan Sajid355** (sensor-fusion build parts).
+> Contributed by **Student Researcher & Technical Expert** (sensor-fusion build parts).
 
 Reusable, buildable fusion components. Each "part" is a self-contained unit with
 an interface, so it can be tested alone and composed into the EKF chain (see

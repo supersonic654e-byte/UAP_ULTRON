@@ -140,7 +140,12 @@ const NAV = [
 API.onUnauthorized = () => { logout(); };
 
 function init() {
-  if (role) showDash(); else showLogin();
+  const demo = demoParam();
+  if (role) { showDash(); }
+  else if (demo) {
+    demoSession(demo === "1" ? "admin" : demo).then(r => { role = r; showDash(); })
+      .catch(() => showLogin());
+  } else { showLogin(); }
 }
 
 function showLogin() {

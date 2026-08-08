@@ -2,7 +2,15 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
-## 2026-08-08 — Web Control System: admin dashboard + user panel (Sadnan Sajid355)
+## 2026-08-08 — Pre-publication privacy + anonymous team credits (UAP_ULTRON Team)
+
+- Repository set to **private** until paper submission (GitHub visibility change).
+- Contributor identities withheld: all credits now use role labels
+  (**Student Researcher & Technical Expert**) with no personal names or emails.
+- Local git identity set to anonymous `UAP_ULTRON Team` for future commits.
+- Added "Pre-publication privacy" notice to the root README.
+
+## 2026-08-08 — Web Control System: admin dashboard + user panel (Student Researcher & Technical Expert)
 
 - Added `versions/V0.3_Ultron/software/web/` — the "live server of the robot":
   FastAPI backend (auth, SQLite store, ROS bridge, obstacle detection, PNG
@@ -32,7 +40,7 @@ Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what cha
   23 offline unit tests pass, firmware compiles, 0 broken links, 0 former
   names / abandoned tokens / speech-deck references.
 
-## 2026-08-08 — Verified V0.3 software system framework (Sadnan Sajid355)
+## 2026-08-08 — Verified V0.3 software system framework (Student Researcher & Technical Expert)
 
 - `versions/V0.3_Ultron/firmware/` — buildable Arduino Mega 2560 sketch
   (`ultron_firmware/`): full protocol, encoders, two-PWM motors, TX queue,
@@ -63,7 +71,7 @@ Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what cha
 - Added CI (docs-lint, firmware-build) and issue/PR templates.
 - Fixed relative links in copied docs.
 
-## 2026-08-08 — Hardware base + system architecture + sensor fusion (Sadnan Sajid355)
+## 2026-08-08 — Hardware base + system architecture + sensor fusion (Student Researcher & Technical Expert)
 
 - `versions/V0.3_Ultron/hardware/` — hardware base package (BOM, wiring, power).
 - `docs/10_architecture/system_architecture.md` — industrial-grade system

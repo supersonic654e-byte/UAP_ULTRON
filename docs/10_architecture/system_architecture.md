@@ -1,6 +1,6 @@
 # System Architecture
 
-> Maintainers: **Sadnan Sajid355** (industrial-grade system architecture design).
+> Maintainers: **Student Researcher & Technical Expert** (industrial-grade system architecture design).
 > Reviewed: 2026-08-08.
 
 This document is the architecture-level view of UAP_ULTRON. The implementation
@@ -78,7 +78,7 @@ See `20_engineering_process/engineering_audit.md` for the full list.
 
 ## 6. Robustness & FMEA notes (industrial-grade lens)
 
-> Added by **Sadnan Sajid355** (industrial-grade system architecture design).
+> Added by **Student Researcher & Technical Expert** (industrial-grade system architecture design).
 
 ### 6.1 Design-for-failure rules
 

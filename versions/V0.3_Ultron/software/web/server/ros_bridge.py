@@ -23,8 +23,9 @@ from server.robot_state import RobotState
 class RosBridge:
     """Optional ROS bridge. All ROS access is behind availability checks."""
 
-    def __init__(self, state: RobotState):
+    def __init__(self, state: RobotState, sim_mode: bool = False):
         self.state = state
+        self.sim_mode = sim_mode
         self._thread = None
         self._running = False
         self._rclpy = None
@@ -34,6 +35,10 @@ class RosBridge:
         self._map_meta = {}
         self._nav_client = None
         self._last_cmd_pub = 0.0
+        # sim frames injected by the Simulator (server/simulator.py)
+        self._sim_depth = None
+        self._sim_map = None
+        self._sim_map_meta = {}
 
     # ---- lifecycle --------------------------------------------------------
     @property
@@ -199,6 +204,15 @@ class RosBridge:
 
     # ---- streams (called by web handlers) ---------------------------------
     def depth_png(self, min_m=0.3, max_m=4.0):
+        if self._sim_depth:
+            d = self._sim_depth
+            w, h = d["w"], d["h"]
+            row = (h // 2) * w
+            row_m = [d["mm"][row + x] / 1000.0 for x in range(w)]
+            obstacles, _ = detection.depth_row_obstacles(
+                row_m, 574.0527954, 159.5)
+            return map_render.render_depth(d["mm"], w, h, min_m, max_m,
+                                           obstacles)
         if not self._depth["mm"]:
             return None
         w = self._depth["w"]
@@ -211,6 +225,12 @@ class RosBridge:
                                        min_m, max_m, obstacles)
 
     def map_png(self):
+        if self._sim_map is not None:
+            m = self._sim_map_meta
+            robot = (self.state.odom["x"], self.state.odom["y"])
+            return map_render.render_map(
+                self._sim_map, m["width"], m["height"], m["resolution"],
+                m["origin_x"], m["origin_y"], robot, self.state.odom["theta"])
         if self._map is None:
             return None
         m = self._map_meta
@@ -226,6 +246,8 @@ class RosBridge:
 
     # ---- command publishing -----------------------------------------------
     def publish_twist(self, vx, wz):
+        if self.sim_mode:
+            return True
         if not self.available:
             return False
         from geometry_msgs.msg import Twist
@@ -236,6 +258,8 @@ class RosBridge:
         return True
 
     def stop_robot(self):
+        if self.sim_mode:
+            return True
         if not self.available:
             return False
         from geometry_msgs.msg import Twist
@@ -244,6 +268,8 @@ class RosBridge:
         return True
 
     def clear_faults(self):
+        if self.sim_mode:
+            return True
         if not self.available:
             return False
         from std_msgs.msg import Empty
@@ -252,6 +278,8 @@ class RosBridge:
 
     def send_goal(self, x, y, theta):
         """Navigate-to-pose via Nav2 action; falls back to /goal_pose topic."""
+        if self.sim_mode:
+            return {"ok": True, "via": "simulate"}
         if not self.available:
             return {"ok": False, "reason": "bridge_offline"}
         if self._nav_client is not None:

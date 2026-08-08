@@ -1,6 +1,6 @@
 # Ultron_V0.3 — Hardware Base: BOM, Wiring & Power
 
-> Contributed by **Sadnan Sajid355** (hardware base).
+> Contributed by **Student Researcher & Technical Expert** (hardware base).
 > Companion to `../implementation_bible.md` §2.1–2.2 (authoritative).
 
 ## Bill of materials (V0.3)

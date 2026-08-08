@@ -50,6 +50,19 @@ function toast(text, kind) {
   setTimeout(() => t.remove(), 3200);
 }
 
+/* Demo-mode hook: `?demo=1` auto-login, only available when the server runs
+   with --sim (never in production). */
+function demoParam() {
+  try { return new URLSearchParams(location.search).get("demo") || ""; } catch (_) { return ""; }
+}
+async function demoSession(role) {
+  const res = await fetch("/api/demo/session?role=" + encodeURIComponent(role));
+  if (!res.ok) throw new Error("demo session unavailable");
+  const d = await res.json();
+  API.set(d.role, d.token);
+  return d.role;
+}
+
 function $(sel, root) { return (root || document).querySelector(sel); }
 function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 

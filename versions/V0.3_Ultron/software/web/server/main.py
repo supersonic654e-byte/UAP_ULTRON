@@ -44,6 +44,7 @@ bridge: RosBridge = None
 token: auth.Token = None
 limiter = auth.LoginRateLimiter()
 bearer = HTTPBearer(auto_error=False)
+SIM_MODE = False          # demo/simulation mode (--sim), gates /api/demo/session
 
 # ---- request models ---------------------------------------------------------
 class PinLogin(BaseModel):
@@ -159,6 +160,18 @@ def _login_admin(body, request, role):
 @app.get("/api/me")
 def me(creds: dict = Depends(_require_role("user", "admin", "admin_control"))):
     return {"role": creds["role"], "identity": creds["identity"]}
+
+
+@app.get("/api/demo/session")
+def demo_session(role: str = "user"):
+    """Demo-only: issue a session token WITHOUT credentials. Enabled ONLY in
+    --sim mode (never in production). Used by ?demo=1 to screenshot/showcase
+    the dashboards."""
+    if not SIM_MODE:
+        raise HTTPException(404, "demo mode disabled")
+    if role not in ("user", "admin", "admin_control"):
+        raise HTTPException(400, "unknown role")
+    return _issue(role, "demo")
 
 
 # ---- status -----------------------------------------------------------------
@@ -389,23 +402,34 @@ async def _sleep(sec):
 
 
 def main():
-    global store, state, bridge, token
+    global store, state, bridge, token, SIM_MODE
     ap = argparse.ArgumentParser(description="Ultron V0.3 web control system")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--no-ros", action="store_true",
                     help="run without the ROS bridge (demo/offline mode)")
+    ap.add_argument("--sim", action="store_true",
+                    help="run in simulation mode (generated data + ?demo=1 "
+                         "login hook; never for production)")
     args = ap.parse_args()
 
     store = Store(args.db)
     state = RobotState()
-    bridge = RosBridge(state)
     token = auth.Token(bytes.fromhex(store.get("token_secret")))
 
-    if args.no_ros:
+    if args.sim:
+        from server.simulator import Simulator
+        SIM_MODE = True
+        bridge = RosBridge(state, sim_mode=True)
+        sim = Simulator(state, bridge)
+        sim.start()
+        print("[web] --sim: simulation mode (generated data + ?demo=1 hook)")
+    elif args.no_ros:
+        bridge = RosBridge(state)
         print("[web] --no-ros: running in offline/demo mode (no commands)")
     else:
+        bridge = RosBridge(state)
         bridge.start()
 
     if store.first_run_secrets:

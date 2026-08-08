@@ -12,8 +12,8 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Sadnan Sajid355',
-    maintainer_email='sadnan.sajid355@example.com',
+    maintainer='UAP_ULTRON Team',
+    maintainer_email='team@example.com',
     description='Ultron_V0.3 onboard nodes: Kinect driver, depth-to-scan, safety, serial bridge, data logger.',
     license='Apache-2.0',
     entry_points={

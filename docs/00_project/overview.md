@@ -63,4 +63,4 @@ The full timeline is in [`roadmap.md`](roadmap.md).
 - **Safety-first**: hardware E-stop → MCU watchdogs → Jetson safety node.
 - **Privacy-by-design** data collection: anonymous motion features, no identifiable video by default.
 
-_Team: Supersonic · Dhaka, Bangladesh_
+_Team: Supersonic — student researcher + technical expert · Dhaka, Bangladesh (identities withheld until paper submission)_

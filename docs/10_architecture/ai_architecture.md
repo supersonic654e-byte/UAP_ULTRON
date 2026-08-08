@@ -163,7 +163,8 @@ Ultron_V0.2. The current third physical build is Ultron_V0.3 — the last
 testing / pre-real-world-deployment version, used for the first real-world
 data-collection pilot (patrol sensor streams, depth-derived features and
 environment signals stored on the operator laptop, the "cloud" for V0.3).
-With the planned hardware + software upgrade (see Ultron_insightV1.0_Implementation_Spec.md),
+With the planned hardware + software upgrade (see
+[`../../versions/InsightV1.0_Ultron/implementation_spec.md`](../../versions/InsightV1.0_Ultron/implementation_spec.md)),
 Ultron_V0.3 becomes Ultron_insightV1.0, the first real-world industry-grade
 deployable UAP_ULTRON robot.
 

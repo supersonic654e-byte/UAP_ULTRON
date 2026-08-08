@@ -98,7 +98,9 @@ let pin = "";
 
 function init() {
   buildKeypad();
-  if (API.role() === "user") showPanel();
+  const demo = demoParam();
+  if (API.role() === "user") { showPanel(); }
+  else if (demo) { demoSession("user").then(showPanel).catch(() => {}); }
 }
 
 function buildKeypad() {
