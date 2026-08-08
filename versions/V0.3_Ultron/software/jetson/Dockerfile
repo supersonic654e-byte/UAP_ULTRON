@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
     ros-humble-tf2-ros \
     ros-humble-tf2-geometry-msgs \
     ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-robot-localization \
+    ros-humble-diagnostic-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ultron_ws

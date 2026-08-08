@@ -2,6 +2,22 @@
 
 Dated log of significant changes. Newest first. Format: `YYYY-MM-DD — what changed (author/PR)`.
 
+## 2026-08-08 — Audit P1/P2: camera_info depth→scan, EKF-onboard, diagnostics (UAP_ULTRON Team)
+
+- **P1 — `depth_to_scan` now consumes `/kinect/depth/camera_info`** (live fx/cx
+  from the ROI-corrected K) instead of hardcoded intrinsics, so the Kinect 1414
+  is drop-in replaceable (D455 publishes its own info). Fallback params kept for
+  a stale-info driver. Pure `select_camera_model` helper + 3 new unit tests.
+- **P1 — EKF-onboard option:** Jetson `ekf_onboard:=true` runs
+  `robot_localization` (new `config/ekf_params.yaml`, added
+  `ros-humble-robot-localization` to the image); laptop launches accept
+  `run_ekf:=false` so B4 (single odom→base_link TF) is preserved.
+- **P2 — `/diagnostics`:** safety_node publishes a 1 Hz DiagnosticArray
+  (lidar/kinect staleness, front distances, heartbeat) for RViz/smoke-test
+  consumption; added `ros-humble-diagnostic-msgs` + `package.xml` dep.
+- **P2 — reserved topic slots:** `/ultron/env`, `/ultron/occupancy`,
+  `/diagnostics` documented in `ros_architecture.md` for InsightV1.0 sensors.
+
 ## 2026-08-08 — Pre-publication privacy + anonymous team credits (UAP_ULTRON Team)
 
 - Repository set to **private** until paper submission (GitHub visibility change).

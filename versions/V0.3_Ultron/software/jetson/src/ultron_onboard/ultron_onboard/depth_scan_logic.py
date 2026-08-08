@@ -3,6 +3,30 @@
 import math
 
 
+def select_camera_model(k, fallback_fx, fallback_cx):
+    """Choose the fx/cx camera model from a camera_info K matrix.
+
+    P1 (audit): the depth->scan node consumes the live CameraInfo so the depth
+    sensor is drop-in replaceable. This pure helper decides the model:
+
+      - A valid K (9 elements, positive fx) -> use fx = K[0], cx = K[2].
+      - Invalid/absent K -> fall back to the declared params.
+      - Returns (fx, cx, using_live).
+
+    Args:
+        k: camera_info K as a sequence of >= 9 floats (may be None/empty).
+        fallback_fx, fallback_cx: param fallbacks (Kinect 1414 intrinsics).
+    Returns:
+        (fx, cx, using_live)
+    """
+    if k is not None and len(k) >= 9:
+        fx = float(k[0])
+        cx = float(k[2])
+        if fx > 0.0:
+            return fx, cx, True
+    return fallback_fx, fallback_cx, False
+
+
 def depth_row_to_scan(data, width, height,
                       fx, cx,
                       tilt_rad, min_m, max_m):

@@ -28,6 +28,9 @@ depth_to_scan:
   ros__parameters:
     roi_w: 320
     roi_h: 120
+    # P1 (audit): intrinsics are now FALLBACK only — the live camera model comes
+    # from /kinect/depth/camera_info. Keep these for a stale-info/no-info
+    # driver; the D455 drop-in works without editing them.
     kinect_fx: 574.0527954
     cx_roi: 159.5
     tilt_deg: -10.0          # mount tilt (matches static TF)

@@ -57,8 +57,23 @@ containers use `network_mode: host` (fix D2). See `network` notes in the Bible �
 
 ## Upgrade hooks
 
-- The EKF container is a launch flag away from moving to the Jetson (P1).
-- `depth_to_scan` must consume `camera_info` so the D455 replaces the Kinect
-  driver without touching consumers (P1).
+- The EKF container is a launch flag away from moving to the Jetson (P1) —
+  `ekf_onboard:=true` on the Jetson + `run_ekf:=false` on the laptop (B4).
+- `depth_to_scan` consumes `camera_info` (P1, done) so the D455 replaces the
+  Kinect driver without touching consumers.
 - Custom topics are namespaced `/ultron/*` and documented — new nodes follow the
   same convention.
+
+## Reserved topic slots (P2)
+
+Documented topic slots so InsightV1.0 sensors drop in without a redesign. A
+cheap sensor (DHT22/SCD40) can validate the pattern today behind these names:
+
+| Topic | Type | QoS | Purpose |
+|---|---|---|---|
+| `/ultron/env` | `sensor_msgs/EnvironmentalData` or custom `UltronEnv` (temp °C, humidity %, CO2 ppm) | RELIABLE | Environment sensing (DHT22/SCD40) — InsightV1.0 |
+| `/ultron/occupancy` | `nav_msgs/OccupancyGrid` (or count) | RELIABLE | Room occupancy estimate |
+| `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | RELIABLE | Node health (safety_node already publishes, P2) |
+
+The Command Centre (`ultron_web`) can later subscribe to `/diagnostics` for
+fleet health without new plumbing.

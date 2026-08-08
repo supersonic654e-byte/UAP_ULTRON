@@ -12,7 +12,8 @@ Fusion rules:
   Kinect contributes only in [1.0, 3.0] m.
   LiDAR stale > 1.0 s -> STOP. Kinect stale > 1.0 s -> LiDAR only.
 
-Outputs: /safe_cmd_vel (20 Hz), /ultron/heartbeat (10 Hz).
+Outputs: /safe_cmd_vel (20 Hz), /ultron/heartbeat (10 Hz),
+         /diagnostics (1 Hz, P2: diagnostic_updater-style health).
 """
 
 import rclpy
@@ -21,6 +22,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from std_msgs.msg import UInt8
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 
 from ultron_onboard.safety_logic import min_range_in_front, compute_safe_twist
 
@@ -61,6 +63,8 @@ class SafetyNode(Node):
                                  self._kin_cb, _BEST_EFFORT)
         self._safe_pub = self.create_publisher(Twist, '/safe_cmd_vel', _RELIABLE)
         self._hb_pub = self.create_publisher(UInt8, '/ultron/heartbeat', _RELIABLE)
+        self._diag_pub = self.create_publisher(DiagnosticArray, '/diagnostics',
+                                               _RELIABLE)
 
         self._cmd = Twist()
         self._scan = None
@@ -68,11 +72,18 @@ class SafetyNode(Node):
         self._scan_t = None
         self._kin_t = None
         self._seq = 0
+        self._last_diag = {
+            'lidar_stale': True,
+            'kinect_stale': True,
+            'lidar_d': None,
+            'kin_d': None,
+        }
 
         dt = 1.0 / self.get_parameter('enforce_rate').value
         self.create_timer(dt, self._enforce)
         dt_hb = 1.0 / self.get_parameter('heartbeat_rate').value
         self.create_timer(dt_hb, self._heartbeat)
+        self.create_timer(1.0, self._publish_diagnostics)   # P2: 1 Hz health
         self.get_logger().info(
             f'Safety node active: STOP<={self._stop}m SLOW<={self._slow}m')
 
@@ -108,6 +119,13 @@ class SafetyNode(Node):
         if lidar_d is None and not lidar_stale:
             lidar_d = float('inf')            # scan valid but empty front arc
 
+        self._last_diag = {
+            'lidar_stale': lidar_stale,
+            'kinect_stale': kinect_stale,
+            'lidar_d': lidar_d,
+            'kin_d': kin_d,
+        }
+
         lin, ang = compute_safe_twist(
             self._cmd.linear.x, self._cmd.angular.z,
             lidar_d, kin_d, lidar_stale, kinect_stale,
@@ -119,6 +137,45 @@ class SafetyNode(Node):
         out.linear.x = lin
         out.angular.z = ang
         self._safe_pub.publish(out)
+
+    def _publish_diagnostics(self):
+        """P2: 1 Hz DiagnosticArray so RViz / the future Command Centre and
+        smoke tests can see sensor health without parsing raw topics."""
+        d = self._last_diag
+        level = DiagnosticStatus.OK
+        msg = 'safety healthy'
+        if d['lidar_stale']:
+            level = DiagnosticStatus.ERROR
+            msg = 'LiDAR stale -> STOP engaged'
+        elif d['kinect_stale']:
+            level = DiagnosticStatus.WARN
+            msg = 'Kinect stale -> LiDAR-only fusion'
+        elif d['lidar_d'] is not None and d['lidar_d'] <= self._stop:
+            level = DiagnosticStatus.WARN
+            msg = f'object inside STOP zone ({d["lidar_d"]:.2f} m)'
+
+        status = DiagnosticStatus()
+        status.level = level
+        status.name = 'ultron_safety_node'
+        status.message = msg
+        status.values = [
+            KeyValue(key='lidar_stale', value=str(d['lidar_stale']).lower()),
+            KeyValue(key='kinect_stale', value=str(d['kinect_stale']).lower()),
+            KeyValue(key='lidar_front_m',
+                     value='inf' if d['lidar_d'] is None
+                     else f"{d['lidar_d']:.3f}"),
+            KeyValue(key='kinect_front_m',
+                     value='inf' if d['kin_d'] is None
+                     else f"{d['kin_d']:.3f}"),
+            KeyValue(key='stop_dist_m', value=f"{self._stop:.3f}"),
+            KeyValue(key='heartbeat_seq', value=str(self._seq)),
+        ]
+
+        arr = DiagnosticArray()
+        arr.header.stamp = self.get_clock().now().to_msg()
+        arr.header.frame_id = ''
+        arr.status = [status]
+        self._diag_pub.publish(arr)
 
     def _heartbeat(self):
         self._seq = (self._seq + 1) & 0xFF

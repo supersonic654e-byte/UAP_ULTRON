@@ -16,6 +16,9 @@ services:
     volumes:
       - ultron_maps:/ultron_laptop/maps
     command: ["ros2", "launch", "/ultron_laptop/launch/laptop_bringup.launch.py"]
+    # P1 (audit): if the EKF runs onboard the Jetson (ekf_onboard:=true), add
+    # "run_ekf:=false" here so only ONE odom->base_link TF is published (B4):
+    # command: ["ros2", "launch", "/ultron_laptop/launch/laptop_bringup.launch.py", "run_ekf:=false"]
 
   rviz2:
     build:
